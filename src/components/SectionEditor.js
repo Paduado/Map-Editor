@@ -17,6 +17,12 @@ const getCodeLabel = (offset, startLabel) => {
 const LETTERS_SPACE = 50;
 const CIRCLE_WIDTH = .7;
 
+const onSeatClick = (index, selected) => ({selectedIndexes}) => ({
+    selectedIndexes: selected
+        ? selectedIndexes.filter(i => i !== index)
+        : selectedIndexes.concat(index)
+});
+
 
 export default class SectionEditor extends React.PureComponent {
     static propTypes = {};
@@ -61,22 +67,47 @@ export default class SectionEditor extends React.PureComponent {
         }
     });
 
-    onCircleContextMenu = (e, selectedCircleIndex) => {
+    onCircleContextMenu = (e, index, selected) => {
         e.preventDefault();
-        this.setState({selectedCircleIndex, menuOpen: true, menuX: e.clientX, menuY: e.clientY})
-    };
-
-    onCircleDelete = () => this.setState(({circles, selectedCircleIndex}) => ({
-        circles: circles.filter((_, i) => i !== selectedCircleIndex)
-    }));
-
-    onCircleClick = (index, selected) => {
+        const {clientX, clientY} = e;
         this.setState(({selectedIndexes}) => ({
-            selectedIndexes: selected
-                ? selectedIndexes.filter(i => i !== index)
-                : selectedIndexes.concat(index)
+            menuOpen: true,
+            menuX: clientX,
+            menuY: clientY,
+            ...(!selected && {
+                selectedIndexes: selectedIndexes.concat(index)
+            })
         }));
     };
+
+    onRowChange = () => {
+        const row = window.prompt('Ingresa la fila');
+        this.setState(({circles, selectedIndexes}) => ({
+            circles: circles.map((circle, i) => !selectedIndexes.includes(i)
+                ? circle
+                : {
+                    ...circle,
+                    row
+                })
+        }))
+    };
+
+    onColChange = () => {
+        const col = window.prompt('Ingresa la columna');
+        this.setState(({circles, selectedIndexes}) => ({
+            circles: circles.map((circle, i) => !selectedIndexes.includes(i)
+                ? circle
+                : {
+                    ...circle,
+                    col
+                })
+        }))
+    };
+
+    onDelete = () => this.setState(({circles, selectedIndexes}) => ({
+        circles: circles.filter((_, i) => !selectedIndexes.includes(i)),
+        selectedIndexes: []
+    }));
 
 
     render() {
@@ -125,10 +156,10 @@ export default class SectionEditor extends React.PureComponent {
                         const selected = selectedIndexes.includes(i);
                         return (
                             <Seat
-                                key={`${circle.row}-${circle.col}`}
+                                key={i}
                                 seat={circle}
-                                onContextMenu={e => this.onCircleContextMenu(e, i)}
-                                onClick={() => this.onCircleClick(i, selected)}
+                                onContextMenu={e => this.onCircleContextMenu(e, i, selected)}
+                                onClick={() => this.setState(onSeatClick(i, selected))}
                                 selected={selected}
                             />
                         )
@@ -140,11 +171,14 @@ export default class SectionEditor extends React.PureComponent {
                     x={menuX}
                     y={menuY}
                     options={[{
-                        label: 'Cambiar código',
-                        onClick: () => console.log('dada')
+                        label: 'Cambiar fila',
+                        onClick: this.onRowChange
+                    }, {
+                        label: 'Cambiar asiento',
+                        onClick: this.onColChange
                     }, {
                         label: 'Eliminar',
-                        onClick: this.onCircleDelete
+                        onClick: this.onDelete
                     }]}
                 />
             </div>
