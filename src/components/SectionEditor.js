@@ -23,6 +23,8 @@ const onSeatClick = (index, selected) => ({selectedIndexes}) => ({
         : selectedIndexes.concat(index)
 });
 
+const history = [];
+
 
 export default class SectionEditor extends React.PureComponent {
     static propTypes = {};
@@ -39,6 +41,37 @@ export default class SectionEditor extends React.PureComponent {
         menuOpen: false,
         menuX: 0,
         menuY: 0,
+        isPopped: false
+    };
+
+    componentDidMount() {
+        window.addEventListener('keypress', this.onKeyPress)
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('keypress', this.onKeyPress)
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        if(!this.state.isPopped && !prevState.isPopped)
+            history.push(prevState);
+        else
+            this.setState({isPopped: false})
+    }
+
+    onKeyPress = ({key, ctrlKey}) => {
+        if(key === 'z' && ctrlKey)
+            this.revert()
+    };
+
+    revert = () => {
+        if(history.length === 0)
+            return;
+        const state = history.pop();
+        this.setState({
+            ...state,
+            isPopped: true
+        });
     };
 
     generate = () => this.setState(({rows, columns, rowStartLabel, colStartLabel}) => {
@@ -70,18 +103,20 @@ export default class SectionEditor extends React.PureComponent {
     onCircleContextMenu = (e, index, selected) => {
         e.preventDefault();
         const {clientX, clientY} = e;
-        this.setState(({selectedIndexes}) => ({
+        this.setState(() => ({
             menuOpen: true,
             menuX: clientX,
             menuY: clientY,
             ...(!selected && {
-                selectedIndexes: selectedIndexes.concat(index)
+                selectedIndexes: [index]
             })
         }));
     };
 
     onRowChange = () => {
         const row = window.prompt('Ingresa la fila');
+        if(!row)
+            return;
         this.setState(({circles, selectedIndexes}) => ({
             circles: circles.map((circle, i) => !selectedIndexes.includes(i)
                 ? circle
@@ -94,6 +129,8 @@ export default class SectionEditor extends React.PureComponent {
 
     onColChange = () => {
         const col = window.prompt('Ingresa la columna');
+        if(!col)
+            return;
         this.setState(({circles, selectedIndexes}) => ({
             circles: circles.map((circle, i) => !selectedIndexes.includes(i)
                 ? circle
