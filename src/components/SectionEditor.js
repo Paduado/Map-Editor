@@ -4,7 +4,7 @@ import Menu from "./Menu";
 import {seatType} from "../utils/types";
 import {green} from "../utils/colors";
 import Selector from "./Selector";
-
+import shortid from 'shortid'
 
 const getCodeLabel = (offset, startLabel) => {
     if(!isNaN(Number(startLabel)))
@@ -80,6 +80,7 @@ export default class SectionEditor extends React.PureComponent {
             });
             for(let col = 0; col < columns; col++) {
                 circles.push({
+                    id: shortid.generate(),
                     x: step * (col + .5) + LETTERS_SPACE,
                     y: step * (row + .5),
                     radium: step / 2 * CIRCLE_WIDTH,
@@ -224,7 +225,7 @@ export default class SectionEditor extends React.PureComponent {
                             const selected = selectedIndexes.includes(i);
                             return (
                                 <Seat
-                                    key={i}
+                                    key={circle.id}
                                     seat={circle}
                                     onContextMenu={e => this.onSeatContextMenu(e, i, selected)}
                                     onClick={e => this.onSeatClick(e, i, selected)}
