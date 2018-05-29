@@ -1,42 +1,47 @@
 import * as React from 'react'
 import PropTypes from 'prop-types'
-import Menu from "./Menu";
 import {seatType} from "../utils/types";
 import {green} from "../utils/colors";
 import Selector from "./Selector";
-import shortid from 'shortid'
+// import shortid from 'shortid'
+import GenerateSectionDialog from "./GenerateSectionDialog";
+import {Delete, Generate, Text, Undo} from "./svgs";
+import Radium from "radium";
 
-const getCodeLabel = (offset, startLabel) => {
+const getCodeLabel = (offset, startLabel, order) => {
+    if(order === 'desc')
+        offset *= -1;
     if(!isNaN(Number(startLabel)))
         return Number(startLabel) + offset;
     else
-        return startLabel.replace(/.$/, c => {
-            return String.fromCharCode(c.charCodeAt(0) + offset)
-        });
+        return startLabel.replace(
+            /.$/,
+            c => String.fromCharCode(c.charCodeAt(0) + offset)
+        );
 };
 
 const LETTERS_SPACE = 50;
 const CIRCLE_WIDTH = .7;
-
-const history = [];
 
 
 export default class SectionEditor extends React.PureComponent {
     static propTypes = {};
 
     state = {
-        rows: 10,
-        columns: 10,
+        generateDialogOpen: false,
+        rowsAmount: 10,
+        colsAmount: 10,
         colStartLabel: 1,
         rowStartLabel: 'A',
         circles: [],
-        rowLabels: [],
-        selectedIndexes: [],
+        rows: [],
+        selectedIds: [],
         viewBox: '0 0 1000 1000',
-        menuOpen: false,
+        seatMenuOpen: false,
         menuX: 0,
         menuY: 0,
-        isPopped: false
+        isUndo: false,
+        history: []
     };
 
     componentDidMount() {
@@ -48,106 +53,117 @@ export default class SectionEditor extends React.PureComponent {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        if(!this.state.isPopped && !prevState.isPopped)
-            history.push(prevState);
-        else
-            this.setState({isPopped: false})
+        const {rows, isUndo} = this.state;
+        if(rows !== prevState.rows) {
+            if(isUndo)
+                this.setState({isUndo: false});
+            else
+                this.setState(({history}) => ({
+                    history: [...history, prevState.rows]
+                }));
+        }
     }
 
     onKeyPress = ({key, ctrlKey}) => {
         if(key === 'z' && ctrlKey)
-            this.revert()
+            this.undo()
     };
 
-    revert = () => {
-        if(history.length === 0)
-            return;
-        const state = history.pop();
+    undo = () => {
+        this.setState(({history}) => history.length ? ({
+            rows: history.slice(-1)[0],
+            history: history.slice(0, -1),
+            isUndo: true
+        }) : null);
+    };
+
+    generate = ({
+        rows: rowsAmount,
+        cols: colsAmount,
+        rowsLabelType,
+        colsLabelType,
+        rowsOrder,
+        colsOrder,
+        rowsStart,
+        colsStart
+    }) => {
+        const step = 1000 / Math.max(rowsAmount, colsAmount);
+        const rowsArr = Array.from(
+            {length: rowsAmount},
+            (_, row) => getCodeLabel(row, rowsStart, rowsOrder)
+        );
+        const colsArr = Array.from(
+            {length: colsAmount},
+            (_, col) => getCodeLabel(col, colsStart, colsOrder)
+        );
+
         this.setState({
-            ...state,
-            isPopped: true
+            generateDialogOpen: false,
+            radium: step / 2 * CIRCLE_WIDTH,
+            rows: rowsArr.map((row, i) => ({
+                name: row,
+                index: i,
+                y: step * (i + .5),
+                circles: colsArr.map((col, j) => ({
+                    id: `${i}-${j}`,
+                    rowIndex: i,
+                    index: j,
+                    row,
+                    col,
+                    y: step * (i + .5),
+                    x: step * (j + .5) + LETTERS_SPACE,
+                }))
+            })),
+            viewBox: `0 0 ${Math.min(colsAmount / rowsAmount, 1) * 1000 + LETTERS_SPACE} ${Math.min(rowsAmount / colsAmount, 1) * 1000}`
         });
     };
 
-    generate = () => this.setState(({rows, columns, rowStartLabel, colStartLabel}) => {
-        const step = 1000 / Math.max(rows, columns);
-        const circles = [];
-        const rowLabels = [];
-        for(let row = 0; row < rows; row++) {
-            rowLabels.push({
-                row: getCodeLabel(row, rowStartLabel),
-                y: step * (row + .5) + 5
-            });
-            for(let col = 0; col < columns; col++) {
-                circles.push({
-                    id: shortid.generate(),
-                    x: step * (col + .5) + LETTERS_SPACE,
-                    y: step * (row + .5),
-                    radium: step / 2 * CIRCLE_WIDTH,
-                    row: getCodeLabel(row, rowStartLabel),
-                    col: getCodeLabel(col, colStartLabel)
-                })
-            }
-        }
-        return {
-            circles,
-            rowLabels,
-            viewBox: `0 0 ${Math.min(columns / rows * 1000, 1000) + LETTERS_SPACE} ${Math.min(rows / columns * 1000, 1000)}`
-        }
-    });
-
-    onSeatClick = (e, index, selected) => {
-        this.setState(({selectedIndexes}) => ({
-            selectedIndexes: selected
-                ? selectedIndexes.filter(i => i !== index)
-                : selectedIndexes.concat(index)
+    onSeatClick = (id, selected) => {
+        this.setState(({selectedIds}) => ({
+            selectedIds: selected
+                ? selectedIds.filter(ID => ID !== id)
+                : selectedIds.concat(id)
         }))
-    };
-
-    onSeatContextMenu = (e, index, selected) => {
-        e.preventDefault();
-        const {clientX, clientY} = e;
-        this.setState(() => ({
-            menuOpen: true,
-            menuX: clientX,
-            menuY: clientY,
-            ...(!selected && {
-                selectedIndexes: [index]
-            })
-        }));
     };
 
     onRowChange = () => {
         const row = window.prompt('Ingresa la fila');
         if(!row)
             return;
-        this.setState(({circles, selectedIndexes}) => ({
-            circles: circles.map((circle, i) => !selectedIndexes.includes(i)
-                ? circle
-                : {
-                    ...circle,
-                    row
-                })
+        this.setState(({rows, selectedIds}) => ({
+            rows: rows.map(r => ({
+                ...r,
+                circles: r.circles.map(
+                    circle => !selectedIds.includes(circle.id)
+                        ? circle
+                        : {...circle, row}
+                )
+            }))
         }))
     };
 
     onColChange = () => {
-        const col = window.prompt('Ingresa la columna');
+        const col = window.prompt('Ingresa la fila');
         if(!col)
             return;
-        this.setState(({circles, selectedIndexes}) => ({
-            circles: circles.map((circle, i) => !selectedIndexes.includes(i)
-                ? circle
-                : {
-                    ...circle,
-                    col
-                })
+        this.setState(({rows, selectedIds}) => ({
+            rows: rows.map(r => ({
+                ...r,
+                circles: r.circles.map(
+                    circle => !selectedIds.includes(circle.id)
+                        ? circle
+                        : {...circle, col}
+                )
+            }))
         }))
     };
 
-    onDelete = () => this.setState(({circles, selectedIndexes}) => ({
-        circles: circles.filter((_, i) => !selectedIndexes.includes(i)),
-        selectedIndexes: []
+    onDelete = () => this.setState(({rows, selectedIds}) => ({
+        rows: rows.map(row => ({
+            ...row,
+            circles: row.circles.filter(({id}) => !selectedIds.includes(id)),
+        })),
+        selectedIds: []
     }));
 
     onMultiSelect = ({x1, x2, y1, y2}) => {
@@ -159,105 +175,199 @@ export default class SectionEditor extends React.PureComponent {
         point.y = y2;
         const {x: X2, y: Y2} = point.matrixTransform(this.svg.getScreenCTM().inverse());
 
-        this.setState(({selectedIndexes, circles}) => {
-            const indexesInRange = circles.map(({x, y, radium}, i) => (
-                    x - radium >= X1
-                    && x + radium <= X2
-                    && y - radium >= Y1
-                    && y + radium <= Y2
-                ) ? i : NaN
-            ).filter(n => !isNaN(n));
+        this.setState(({selectedIds, rows, radium}) => {
+            const idsInRange = rows.reduce(
+                (circles, row) => circles.concat(row.circles.map(
+                    ({id, x, y}) => (
+                        x - radium <= X2
+                        && x + radium >= X1
+                        && y - radium <= Y2
+                        && y + radium >= Y1
+                    ) ? id : null
+                )),
+                []
+            ).filter(Boolean);
             return {
-                selectedIndexes: indexesInRange.length === 0
+                selectedIds: idsInRange.length === 0
                     ? []
-                    : selectedIndexes.concat(indexesInRange.filter(
-                        i => !selectedIndexes.includes(i)
+                    : selectedIds.concat(idsInRange.filter(
+                        id => !selectedIds.includes(id)
                     ))
             };
+        })
+    };
+
+    onRowClick = (circles, selected) => {
+        this.setState(({selectedIds}) => {
+            const ids = circles.map(({id}) => id);
+            return {
+                selectedIds: selected
+                    ? selectedIds.filter(id => !ids.includes(id))
+                    : selectedIds.concat(ids)
+            }
         })
     };
 
 
     render() {
         const {
+            generateDialogOpen,
             rows,
-            columns,
-            rowStartLabel,
-            colStartLabel,
-            circles,
-            rowLabels,
             viewBox,
-            menuOpen,
-            menuX,
-            menuY,
-            selectedIndexes
+            selectedIds,
+            history,
+            radium
         } = this.state;
         const styles = {
+            container: {
+                width: '100%',
+                height: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center'
+            },
+            actionBar: {
+                height: 100,
+                padding: 10,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                flexShrink: 0
+            },
+            actionGroup: {
+                display: 'flex',
+                height: '100%',
+                alignItems: 'center',
+                padding: '0',
+                margin: '0 10px',
+                borderLeft: '1px solid #ddd',
+                flexWrap: 'wrap',
+                position: 'relative',
+            },
+            actionGroupLabel: {
+                textAlign: 'center',
+                fontSize: '.8rem',
+                top: -5,
+                left: 0,
+                right: 0,
+                position: 'absolute',
+                color: '#999'
+            },
+            actionButton: {
+                margin: '0 5px',
+            },
+            separator: {
+                height: '100%',
+                width: 1,
+                background: '#ddd'
+            },
             svg: {
                 width: '100%',
-                height: '700px',
+                height: 0,
+                flexGrow: 1,
                 border: '1px solid #ddd',
                 display: 'block'
             }
         };
 
         return (
-            <div>
-                <input value={rows} placeholder="filas" type="number" onChange={e => this.setState({rows: Number(e.target.value)}, this.generate)}/>
-                <input value={columns} placeholder="columnas" type="number" onChange={e => this.setState({columns: Number(e.target.value)}, this.generate)}/>
-                <input value={rowStartLabel} placeholder="Inicio filas" onChange={e => this.setState({rowStartLabel: e.target.value})}/>
-                <input value={colStartLabel} placeholder="Inicio columnas" onChange={e => this.setState({colStartLabel: e.target.value})}/>
-                <button onClick={this.generate}>Generar</button>
+            <div style={styles.container}>
+                <div style={styles.actionBar}>
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<Generate/>}
+                        onClick={() => this.setState({generateDialogOpen: true})}
+                        label="Generar"
+                    />
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<Undo/>}
+                        onClick={this.undo}
+                        label="Deshacer"
+                        disabled={history.length === 0}
+                    />
+                    <div style={styles.actionGroup}>
+                        <IconButton
+                            style={styles.actionButton}
+                            icon={<Delete/>}
+                            onClick={this.onDelete}
+                            label="Eliminar"
+                            disabled={selectedIds.length === 0}
+                        />
+                        <IconButton
+                            style={styles.actionButton}
+                            icon={<Text/>}
+                            onClick={this.onRowChange}
+                            label="Cambiar fila"
+                            disabled={selectedIds.length === 0}
+                        />
+                        <IconButton
+                            style={styles.actionButton}
+                            icon={<Text/>}
+                            onClick={this.onColChange}
+                            label="Cambiar columna"
+                            disabled={selectedIds.length === 0}
+                        />
+                        <div style={styles.actionGroupLabel}>
+                            {`Asiento${selectedIds.length > 1 ? 's' : ''}`}
+                        </div>
+                    </div>
+                </div>
                 <Selector onSelect={this.onMultiSelect}>
                     <svg style={styles.svg} viewBox={viewBox} ref={svg => this.svg = svg}>
-                        {rowLabels.map(({row, y}) => (
-                            <text
-                                key={row}
-                                x={20}
-                                y={y}
-                                style={{fontSize: '1.2rem'}}
-                                fontFamily="Proxima Nova"
-                            >
-                                {row}
-                            </text>
-                        ))}
-                        {circles.map((circle, i) => {
-                            const selected = selectedIndexes.includes(i);
+                        {rows.map(({index, y, name, circles}) => {
+                            const selected = circles.every(({id}) => selectedIds.includes(id));
                             return (
-                                <Seat
-                                    key={circle.id}
-                                    seat={circle}
-                                    onContextMenu={e => this.onSeatContextMenu(e, i, selected)}
-                                    onClick={e => this.onSeatClick(e, i, selected)}
-                                    selected={selected}
-                                />
+                                <React.Fragment key={index}>
+                                    <text
+                                        x={LETTERS_SPACE / 2}
+                                        y={y}
+                                        onMouseDown={e => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }}
+                                        onClick={() => this.onRowClick(circles, selected)}
+                                        style={{
+                                            fontSize: radium,
+                                            textAnchor: 'middle',
+                                            dominantBaseline: 'central',
+                                            cursor: 'pointer',
+                                            fill: selected && green,
+                                        }}
+                                        fontFamily="Proxima Nova"
+                                    >
+                                        {name}
+                                    </text>
+                                    {circles.map(circle => {
+                                        const selected = selectedIds.includes(circle.id);
+                                        return (
+                                            <Seat
+                                                key={circle.id}
+                                                seat={circle}
+                                                radium={radium}
+                                                onClick={e => this.onSeatClick(circle.id, selected)}
+                                                selected={selected}
+                                            />
+                                        )
+                                    })}
+                                </React.Fragment>
                             )
                         })}
                     </svg>
                 </Selector>
-                <Menu
-                    open={menuOpen}
-                    onClose={() => this.setState({menuOpen: false})}
-                    x={menuX}
-                    y={menuY}
-                    options={[{
-                        label: 'Cambiar fila',
-                        onClick: this.onRowChange
-                    }, {
-                        label: 'Cambiar asiento',
-                        onClick: this.onColChange
-                    }, {
-                        label: 'Eliminar',
-                        onClick: this.onDelete
-                    }]}
+
+                <GenerateSectionDialog
+                    open={generateDialogOpen}
+                    onClose={() => this.setState({generateDialogOpen: false})}
+                    onSuccess={this.generate}
                 />
             </div>
         )
     }
 }
 
-const Seat = ({seat, selected, ...props}) => {
-    const {row, col, x, y, radium} = seat;
+const Seat = ({seat, radium, selected, ...props}) => {
+    const {row, col, x, y} = seat;
     const code = `${row}-${col}`;
     const styles = {
         circle: {
@@ -273,7 +383,8 @@ const Seat = ({seat, selected, ...props}) => {
             lineHeight: radium / 2,
             fontFamily: 'Proxima Nova',
             pointerEvents: 'none',
-            textAnchor: 'middle'
+            textAnchor: 'middle',
+            dominantBaseline: 'central'
         }
     };
     return (
@@ -292,7 +403,7 @@ const Seat = ({seat, selected, ...props}) => {
             />
             <text
                 x={x}
-                y={y + radium / 5}
+                y={y}
                 style={styles.label}
             >
                 {code}
@@ -303,5 +414,48 @@ const Seat = ({seat, selected, ...props}) => {
 
 Seat.propTypes = {
     seat: seatType.isRequired,
+    radium: PropTypes.number,
     selected: PropTypes.bool
 };
+
+const IconButton = Radium(({icon, label, style, onClick, disabled}) => {
+    const styles = {
+        container: {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            transition: 'all 100ms',
+            cursor: 'pointer',
+            border: '0',
+            padding: 5,
+            width: 60,
+            height: 60,
+            borderRadius: 3,
+            fill: '#555',
+            color: '#555',
+            ':hover': {
+                background: 'rgba(0,0,0,.05)'
+            },
+            ...style,
+            ...(disabled && {
+                opacity: .5,
+                pointerEvents: 'none'
+            })
+        },
+        label: {
+            fontSize: '.8rem',
+        }
+    };
+
+    return (
+        <button
+            onClick={disabled ? undefined : onClick}
+            style={styles.container}
+        >
+            {icon}
+            <div style={styles.label}>
+                {label}
+            </div>
+        </button>
+    )
+});

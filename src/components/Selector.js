@@ -72,7 +72,7 @@ export default class Selector extends React.PureComponent {
             },
             selector: {
                 border: '1px solid #444',
-                background: 'rgba(0,0,0,.5)',
+                background: 'rgba(0,0,0,.3)',
                 position: 'fixed',
                 top: Math.min(startY, endY),
                 left: Math.min(startX, endX),
