@@ -3,10 +3,10 @@ import PropTypes from 'prop-types'
 import {seatType} from "../utils/types";
 import {green} from "../utils/colors";
 import Selector from "./Selector";
-// import shortid from 'shortid'
 import GenerateSectionDialog from "./GenerateSectionDialog";
 import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Generate, Text, Undo} from "./svgs";
 import Radium from "radium";
+import PromptDialog from "./PromptDialog";
 
 const getCodeLabel = (offset, startLabel, order) => {
     if(order === 'desc')
@@ -61,6 +61,8 @@ export default class SectionEditor extends React.PureComponent {
         menuX: 0,
         menuY: 0,
         isUndo: false,
+        rowChangeDialogOpen: false,
+        colChangeDialogOpen: false,
         history: []
     };
 
@@ -167,10 +169,7 @@ export default class SectionEditor extends React.PureComponent {
         }))
     };
 
-    onRowChange = () => {
-        const rowName = window.prompt('Ingresa la fila');
-        if(!rowName)
-            return;
+    onRowChange = rowName => {
         this.setState(({selectedIds, rows}) => ({
             rows: rows.map(row => ({
                 ...row,
@@ -185,10 +184,7 @@ export default class SectionEditor extends React.PureComponent {
         }));
     };
 
-    onColChange = () => {
-        const colName = window.prompt('Ingresa la fila');
-        if(!colName)
-            return;
+    onColChange = colName => {
         this.setState(({selectedIds, rows}) => ({
             rows: rows.map(row => ({
                 ...row,
@@ -374,6 +370,8 @@ export default class SectionEditor extends React.PureComponent {
             selectedIds,
             history,
             viewBox,
+            rowChangeDialogOpen,
+            colChangeDialogOpen
         } = this.state;
 
         const isNoRowSelected = !rows.some(
@@ -459,7 +457,7 @@ export default class SectionEditor extends React.PureComponent {
                     <IconButton
                         style={styles.actionButton}
                         icon={<Text/>}
-                        onClick={this.onColChange}
+                        onClick={() => this.setState({colChangeDialogOpen: true})}
                         label="Cambiar columna"
                         disabled={selectedIds.length === 0}
                     />
@@ -467,7 +465,7 @@ export default class SectionEditor extends React.PureComponent {
                     <IconButton
                         style={styles.actionButton}
                         icon={<Text/>}
-                        onClick={this.onRowChange}
+                        onClick={() => this.setState({rowChangeDialogOpen: true})}
                         label="Cambiar fila"
                         disabled={isNoRowSelected}
                     />
@@ -540,6 +538,20 @@ export default class SectionEditor extends React.PureComponent {
                     open={generateDialogOpen}
                     onClose={() => this.setState({generateDialogOpen: false})}
                     onSuccess={this.generate}
+                />
+                <PromptDialog
+                    open={rowChangeDialogOpen}
+                    onClose={() => this.setState({rowChangeDialogOpen: false})}
+                    onSuccess={row => this.onRowChange(row)}
+                    title="Ingresa el valor de la fila"
+                    inputLabel="Fila"
+                />
+                <PromptDialog
+                    open={colChangeDialogOpen}
+                    onClose={() => this.setState({colChangeDialogOpen: false})}
+                    onSuccess={col => this.onColChange(col)}
+                    title="Ingresa el valor de la columna"
+                    inputLabel="Columna"
                 />
             </div>
         )
