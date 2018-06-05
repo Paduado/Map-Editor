@@ -16,6 +16,17 @@ export default class PromptDialog extends React.PureComponent {
         value: ''
     };
 
+    input = React.createRef();
+
+    componentDidUpdate(prevProps) {
+        if(this.props.open && !prevProps.open) {
+            setTimeout(() => {
+                this.input.current.focus()
+            }, 300)
+        }
+
+    }
+
     render() {
         const {title, inputLabel, onSuccess, ...props} = this.props;
         const {value} = this.state;
@@ -29,7 +40,7 @@ export default class PromptDialog extends React.PureComponent {
             },
             button: {
                 display: 'block',
-                marginLeft: 'auto'
+                margin: '10px 10px 10px auto'
             }
         };
         return (
@@ -43,6 +54,7 @@ export default class PromptDialog extends React.PureComponent {
                     value={value}
                     onChange={(e, value) => this.setState({value})}
                     style={styles.input}
+                    ref={this.input}
                 />
                 <Button
                     label="Confirmar"

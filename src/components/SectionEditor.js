@@ -171,6 +171,7 @@ export default class SectionEditor extends React.PureComponent {
 
     onRowChange = rowName => {
         this.setState(({selectedIds, rows}) => ({
+            rowChangeDialogOpen: false,
             rows: rows.map(row => ({
                 ...row,
                 ...(isRowSelected(row, selectedIds) && {
@@ -178,7 +179,9 @@ export default class SectionEditor extends React.PureComponent {
                 }),
                 cols: row.cols.map(col => ({
                     ...col,
-                    row: rowName
+                    ...(selectedIds.includes(col.id) && {
+                        row: rowName
+                    })
                 }))
             }))
         }));
@@ -186,11 +189,14 @@ export default class SectionEditor extends React.PureComponent {
 
     onColChange = colName => {
         this.setState(({selectedIds, rows}) => ({
+            colChangeDialogOpen: false,
             rows: rows.map(row => ({
                 ...row,
                 cols: row.cols.map(col => ({
                     ...col,
-                    col: colName
+                    ...(selectedIds.includes(col.id) && {
+                        col: colName
+                    })
                 }))
             }))
         }));
