@@ -11,5 +11,5 @@ export const seatType = PropTypes.shape({
     ]).isRequired,
     x: PropTypes.number.isRequired,
     y: PropTypes.number.isRequired,
-    // radium: PropTypes.number.isRequired,
+    radium: PropTypes.number.isRequired,
 });
