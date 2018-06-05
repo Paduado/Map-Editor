@@ -55,3 +55,25 @@ export const DeleteRow = props => (
         <path d="M7.41 18.59L8.83 20 12 16.83 15.17 20l1.41-1.41L12 14l-4.59 4.59zm9.18-13.18L15.17 4 12 7.17 8.83 4 7.41 5.41 12 10l4.59-4.59z"/>
     </svg>
 );
+
+export const AlignRight = props => (
+    <svg width="24" height="24" viewBox="0 0 24 24" {...props}>
+        <path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/>
+        <path d="M0 0h24v24H0z" fill="none"/>
+    </svg>
+);
+
+export const AlignLeft = props => (
+    <svg width="24" height="24" viewBox="0 0 24 24" {...props}>
+        <path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/>
+        <path d="M0 0h24v24H0z" fill="none"/>
+    </svg>
+);
+
+export const AlignCenter = props => (
+    <svg width="24" height="24" viewBox="0 0 24 24" {...props}>
+        <path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/>
+        <path d="M0 0h24v24H0z" fill="none"/>
+    </svg>
+
+);

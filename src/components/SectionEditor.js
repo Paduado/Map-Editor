@@ -5,7 +5,7 @@ import {green} from "../utils/colors";
 import Selector from "./Selector";
 // import shortid from 'shortid'
 import GenerateSectionDialog from "./GenerateSectionDialog";
-import {Delete, DeleteRow, Generate, Text, Undo} from "./svgs";
+import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Generate, Text, Undo} from "./svgs";
 import Radium from "radium";
 
 const getCodeLabel = (offset, startLabel, order) => {
@@ -23,41 +23,23 @@ const getCodeLabel = (offset, startLabel, order) => {
 const LETTERS_SPACE = 50;
 const CIRCLE_WIDTH = .7;
 
+const isRowSelected = (row, selectedIds) => row.cols.length > 0 && row.cols.every(
+    ({id}) => selectedIds.includes(id)
+);
+
 const getLayoutData = rows => {
     const rowsAmount = rows.length;
     const colsAmount = Math.max(
         ...rows.map(({cols}) => cols.length)
     );
-    const minColIndex = Math.min(
-        ...rows.map(({cols}) => Math.min(
-            ...cols.map(({index}) => index))
-        )
-    );
     const step = 1000 / Math.max(rowsAmount, colsAmount);
-    const colsStart = minColIndex * step;
     const colsEnd = Math.min(colsAmount / rowsAmount, 1) * 1000 + LETTERS_SPACE;
     const rowsEnd = Math.min(rowsAmount / colsAmount, 1) * 1000;
     const radium = step / 2 * CIRCLE_WIDTH;
     return {
-        viewBox: `${colsStart} 0 ${colsEnd} ${rowsEnd}`,
-        rowLabels: rows.map((row, i) => ({
-            ...row,
-            y: step * (i + .5),
-            x: colsStart + LETTERS_SPACE / 2,
-            size: radium,
-        })),
-        circles: rows.reduce(
-            (circles, row, i) => circles.concat(
-                row.cols.map(
-                    col => ({
-                        ...col,
-                        radium,
-                        y: step * (i + .5),
-                        x: step * (col.index + .5) + LETTERS_SPACE,
-                    }),
-                )
-            ), []
-        ),
+        viewBox: `0 0 ${colsEnd} ${rowsEnd}`,
+        step,
+        radium
     };
 };
 
@@ -91,14 +73,18 @@ export default class SectionEditor extends React.PureComponent {
     }
 
     componentDidUpdate(prevProps, prevState) {
-        const {rows, isUndo} = this.state;
-        if(rows !== prevState.rows) {
+        const {rows, viewBox, isUndo} = this.state;
+        if(
+            rows !== prevState.rows
+            || viewBox !== prevState.viewBox
+        ) {
             if(isUndo)
                 this.setState({isUndo: false});
             else
                 this.setState(({history}) => ({
                     history: [...history, {
                         rows: prevState.rows,
+                        viewBox: prevState.viewBox,
                     }]
                 }));
         }
@@ -114,9 +100,10 @@ export default class SectionEditor extends React.PureComponent {
             if(!history.length)
                 return null;
 
-            const [{rows}] = history.slice(-1);
+            const [{rows, viewBox}] = history.slice(-1);
             return {
                 rows,
+                viewBox,
                 history: history.slice(0, -1),
                 isUndo: true
             }
@@ -141,18 +128,31 @@ export default class SectionEditor extends React.PureComponent {
             {length: colsAmount},
             (_, col) => getCodeLabel(col, colsStart, colsOrder)
         );
+        const rows = rowsArr.map((row, i) => ({
+            name: row,
+            x: LETTERS_SPACE / 2,
+            cols: colsArr.map((col, j) => ({
+                id: `${i}-${j}`,
+                index: j,
+                row,
+                col,
+            }))
+        }));
+        const {step, radium, viewBox} = getLayoutData(rows);
 
         this.setState({
             generateDialogOpen: false,
-            rows: rowsArr.map((row, i) => ({
-                name: row,
-                index: i,
-                cols: colsArr.map((col, j) => ({
-                    id: `${i}-${j}`,
-                    index: j,
-                    name: col,
-                    row,
-                    col,
+            viewBox,
+            rows: rows.map((row, i) => ({
+                ...row,
+                y: step * (i + .5),
+                x: LETTERS_SPACE / 2,
+                size: radium,
+                cols: row.cols.map(col => ({
+                    ...col,
+                    radium,
+                    y: step * (i + .5),
+                    x: step * (col.index + .5) + LETTERS_SPACE,
                 }))
             })),
         });
@@ -174,9 +174,7 @@ export default class SectionEditor extends React.PureComponent {
         this.setState(({selectedIds, rows}) => ({
             rows: rows.map(row => ({
                 ...row,
-                ...(row.cols.length > 0 && row.cols.every(
-                    ({id}) => selectedIds.includes(id)
-                ) && {
+                ...(isRowSelected(row, selectedIds) && {
                     name: rowName
                 }),
                 cols: row.cols.map(col => ({
@@ -202,15 +200,36 @@ export default class SectionEditor extends React.PureComponent {
         }));
     };
 
-    onDelete = () => this.setState(({selectedIds, rows}) => ({
-        rows: rows.map(row => ({
+    onDelete = () => this.setState(({selectedIds, rows}) => {
+        rows = rows.map(row => ({
             ...row,
             cols: row.cols.filter(
                 ({id}) => !selectedIds.includes(id)
             )
-        })),
-        selectedIds: []
-    }));
+        }));
+        const minColIndex = Math.ceil(Math.min(
+            ...rows.map(({cols}) => Math.min(
+                ...cols.map(({index}) => index))
+            )
+        ));
+        const {step, radium, viewBox} = getLayoutData(rows);
+        return {
+            rows: rows.map((row, i) => ({
+                ...row,
+                size: radium,
+                y: step * (i + .5),
+                cols: row.cols.map(col => ({
+                    ...col,
+                    radium,
+                    index: col.index - minColIndex,
+                    y: step * (i + .5),
+                    x: step * (col.index - minColIndex + .5) + LETTERS_SPACE,
+                }))
+            })),
+            viewBox,
+            selectedIds: []
+        }
+    });
 
     onMultiSelect = ({x1, x2, y1, y2}) => {
         const point = this.svg.createSVGPoint();
@@ -226,13 +245,15 @@ export default class SectionEditor extends React.PureComponent {
         );
 
         this.setState(({selectedIds, rows}) => {
-            const {circles} = getLayoutData(rows);
-            const idsInRange = circles.filter(
-                ({x, y, radium}) =>
-                    getDistance(X1 - x, Y1 - y) <= radium
-                    && getDistance(x - X2, Y1 - y) <= radium
-                    && getDistance(X1 - x, y - Y2) <= radium
-                    && getDistance(x - X2, y - Y2) <= radium
+            const idsInRange = rows.reduce((cols, row) =>
+                cols.concat(row.cols.filter(
+                    ({x, y, radium}) =>
+                        getDistance(X1 - x, Y1 - y) <= radium
+                        && getDistance(x - X2, Y1 - y) <= radium
+                        && getDistance(X1 - x, y - Y2) <= radium
+                        && getDistance(x - X2, y - Y2) <= radium
+                    )
+                ), []
             ).map(({id}) => id);
 
             return {
@@ -255,16 +276,96 @@ export default class SectionEditor extends React.PureComponent {
     };
 
     onRowDelete = () => {
-        this.setState(({rows, selectedIds}) => ({
-            rows: rows.filter(
-                row => row.cols.length === 0
-                    || row.cols.some(
-                        ({id}) => !selectedIds.includes(id)
-                    )
-            )
-        }))
+        this.setState(({rows, selectedIds}) => {
+            rows = rows.filter(
+                row => !isRowSelected(row, selectedIds)
+            );
+            const {step, viewBox, radium} = getLayoutData(rows);
+            return {
+                viewBox,
+                rows: rows.map((row, i) => ({
+                    ...row,
+                    radium,
+                    y: step * (i + .5),
+                    cols: row.cols.map(col => ({
+                        ...col,
+                        radium,
+                        y: step * (i + .5),
+                        x: step * (col.index + .5) + LETTERS_SPACE,
+                    }))
+                }))
+            }
+        })
     };
 
+    onRowLeftAlign = () => {
+        this.setState(({rows, selectedIds}) => {
+            const {step} = getLayoutData(rows);
+            return ({
+                rows: rows.map(row => !isRowSelected(row, selectedIds) ? row : {
+                    ...row,
+                    cols: row.cols.map((col, i) => ({
+                        ...col,
+                        x: step * (i + .5) + LETTERS_SPACE,
+                        index: i
+                    }))
+                })
+            })
+        })
+    };
+
+    onRowRightAlign = () => {
+        this.setState(({rows, selectedIds}) => {
+            const {step} = getLayoutData(rows);
+            const maxLength = Math.max(
+                ...rows.map(
+                    ({cols}) => Math.max(cols.length)
+                )
+            ) - 1;
+            return ({
+                rows: rows.map(row =>
+                    !isRowSelected(row, selectedIds)
+                        ? row
+                        : {
+                            ...row,
+                            cols: row.cols.reverse().map((col, i) => ({
+                                ...col,
+                                x: step * (maxLength - i + .5) + LETTERS_SPACE,
+                                index: maxLength - i
+                            })).reverse()
+                        }
+                )
+            })
+        })
+    };
+
+    onRowCenter = () => {
+        this.setState(({rows, selectedIds}) => {
+            const {step} = getLayoutData(rows);
+            const maxLength = Math.max(
+                ...rows.map(
+                    ({cols}) => Math.max(cols.length)
+                )
+            );
+            return ({
+                rows: rows.map(row =>
+                    !isRowSelected(row, selectedIds)
+                        ? row
+                        : {
+                            ...row,
+                            cols: row.cols.map((col, i, {length}) => {
+                                const offset = (maxLength - length) / 2;
+                                return {
+                                    ...col,
+                                    x: step * (i + offset + .5) + LETTERS_SPACE,
+                                    // index: i + offset
+                                }
+                            })
+                        }
+                )
+            })
+        })
+    };
 
     render() {
         const {
@@ -272,13 +373,12 @@ export default class SectionEditor extends React.PureComponent {
             rows,
             selectedIds,
             history,
+            viewBox,
         } = this.state;
 
-        const {
-            viewBox,
-            rowLabels,
-            circles,
-        } = getLayoutData(rows);
+        const isNoRowSelected = !rows.some(
+            row => isRowSelected(row, selectedIds)
+        );
         const styles = {
             container: {
                 width: '100%',
@@ -369,14 +469,36 @@ export default class SectionEditor extends React.PureComponent {
                         icon={<Text/>}
                         onClick={this.onRowChange}
                         label="Cambiar fila"
-                        disabled={selectedIds.length === 0}
+                        disabled={isNoRowSelected}
                     />
                     <IconButton
                         style={styles.actionButton}
                         icon={<DeleteRow/>}
                         onClick={this.onRowDelete}
                         label="Eliminar fila"
-                        disabled={selectedIds.length === 0}
+                        disabled={isNoRowSelected}
+                    />
+                    <div style={styles.separator}/>
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<AlignLeft/>}
+                        onClick={this.onRowLeftAlign}
+                        label="Alinear izquierda"
+                        disabled={isNoRowSelected}
+                    />
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<AlignCenter/>}
+                        onClick={this.onRowCenter}
+                        label="Alinear centro"
+                        disabled={isNoRowSelected}
+                    />
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<AlignRight/>}
+                        onClick={this.onRowRightAlign}
+                        label="Alinear derecha"
+                        disabled={isNoRowSelected}
                     />
                 </div>
                 <Selector onSelect={this.onMultiSelect}>
@@ -385,34 +507,32 @@ export default class SectionEditor extends React.PureComponent {
                         viewBox={viewBox}
                         ref={svg => this.svg = svg}
                     >
-                        {rowLabels.map(row => {
-                            const selected = row.cols.length > 0 && row.cols.every(
-                                ({id}) => selectedIds.includes(id)
-                            );
+                        {rows.map((row, i) => {
+                            const selected = isRowSelected(row, selectedIds);
                             return (
-                                <RowLabel
-                                    key={row.index}
-                                    y={row.y}
-                                    x={row.x}
-                                    onClick={() => this.onRowClick(row, selected)}
-                                    children={row.name}
-                                    size={row.size}
-                                    selected={selected}
-                                />
+                                <React.Fragment key={i}>
+                                    <RowLabel
+                                        y={row.y}
+                                        x={row.x}
+                                        onClick={() => this.onRowClick(row, selected)}
+                                        children={row.name}
+                                        size={row.size}
+                                        selected={selected}
+                                    />
+                                    {row.cols.map(circle => {
+                                        const selected = selectedIds.includes(circle.id);
+                                        return (
+                                            <Seat
+                                                key={circle.id}
+                                                seat={circle}
+                                                onClick={() => this.onSeatClick(circle.id, selected)}
+                                                selected={selected}
+                                            />
+                                        )
+                                    })}
+                                </React.Fragment>
                             )
                         })}
-                        {circles.map(circle => {
-                            const selected = selectedIds.includes(circle.id);
-                            return (
-                                <Seat
-                                    key={circle.id}
-                                    seat={circle}
-                                    onClick={() => this.onSeatClick(circle.id, selected)}
-                                    selected={selected}
-                                />
-                            )
-                        })}
-
                     </svg>
                 </Selector>
 
@@ -523,7 +643,10 @@ const IconButton = Radium(({icon, label, style, onClick, disabled}) => {
             fill: '#555',
             color: '#555',
             ':hover': {
-                background: 'rgba(0,0,0,.05)'
+                background: 'rgba(0,0,0,.1)'
+            },
+            ':active': {
+                background: 'rgba(0,0,0,.2)'
             },
             ...style,
             ...(disabled && {
