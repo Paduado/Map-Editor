@@ -4,9 +4,10 @@ import {seatType} from "../utils/types";
 import {green} from "../utils/colors";
 import Selector from "./Selector";
 import GenerateSectionDialog from "./GenerateSectionDialog";
-import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Generate, Text, Undo} from "./svgs";
+import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Download, Generate, Text, Undo} from "./svgs";
 import Radium from "radium";
 import PromptDialog from "./PromptDialog";
+import Color from 'color'
 
 const getCodeLabel = (offset, startLabel, order) => {
     if(order === 'desc')
@@ -63,15 +64,22 @@ export default class SectionEditor extends React.PureComponent {
         isUndo: false,
         rowChangeDialogOpen: false,
         colChangeDialogOpen: false,
+        saveDialogOpen: false,
         history: []
     };
 
+    svg = React.createRef();
+    a = document.createElement('a');
+
     componentDidMount() {
-        window.addEventListener('keypress', this.onKeyPress)
+        window.addEventListener('keypress', this.onKeyPress);
+        this.a.style.display = 'none';
+        document.body.appendChild(this.a);
     }
 
     componentWillUnmount() {
-        window.removeEventListener('keypress', this.onKeyPress)
+        window.removeEventListener('keypress', this.onKeyPress);
+        document.body.removeChild(this.a);
     }
 
     componentDidUpdate(prevProps, prevState) {
@@ -234,13 +242,13 @@ export default class SectionEditor extends React.PureComponent {
     });
 
     onMultiSelect = ({x1, x2, y1, y2}) => {
-        const point = this.svg.createSVGPoint();
+        const point = this.svg.current.createSVGPoint();
         point.x = x1;
         point.y = y1;
-        const {x: X1, y: Y1} = point.matrixTransform(this.svg.getScreenCTM().inverse());
+        const {x: X1, y: Y1} = point.matrixTransform(this.svg.current.getScreenCTM().inverse());
         point.x = x2;
         point.y = y2;
-        const {x: X2, y: Y2} = point.matrixTransform(this.svg.getScreenCTM().inverse());
+        const {x: X2, y: Y2} = point.matrixTransform(this.svg.current.getScreenCTM().inverse());
 
         const getDistance = (dx, dy) => (
             Math.sqrt(Math.max(dx, 0) ** 2 + Math.max(dy, 0) ** 2)
@@ -360,13 +368,26 @@ export default class SectionEditor extends React.PureComponent {
                                 return {
                                     ...col,
                                     x: step * (i + offset + .5) + LETTERS_SPACE,
-                                    // index: i + offset
+                                    index: i + offset
                                 }
                             })
                         }
                 )
             })
         })
+    };
+
+    download = fileName => {
+        const svg = this.svg.current.cloneNode(true);
+        svg.style = '';
+        const data = new Blob(
+            [svg.outerHTML],
+            {type: 'image/svg+xml'}
+        );
+        this.a.href = URL.createObjectURL(data);
+        this.a.download = fileName;
+        this.a.click();
+        this.setState({saveDialogOpen: false});
     };
 
     render() {
@@ -377,7 +398,8 @@ export default class SectionEditor extends React.PureComponent {
             history,
             viewBox,
             rowChangeDialogOpen,
-            colChangeDialogOpen
+            colChangeDialogOpen,
+            saveDialogOpen,
         } = this.state;
 
         const isNoRowSelected = !rows.some(
@@ -504,12 +526,23 @@ export default class SectionEditor extends React.PureComponent {
                         label="Alinear derecha"
                         disabled={isNoRowSelected}
                     />
+                    <div style={styles.separator}/>
+                    <IconButton
+                        style={styles.actionButton}
+                        icon={<Download/>}
+                        onClick={() => this.setState({saveDialogOpen: true})}
+                        label="Descargar"
+                        background={green}
+                        color="white"
+                        disabled={!rows.some(({cols}) => cols.length > 0)}
+                    />
                 </div>
                 <Selector onSelect={this.onMultiSelect}>
                     <svg
                         style={styles.svg}
                         viewBox={viewBox}
-                        ref={svg => this.svg = svg}
+                        xmlns="http://www.w3.org/2000/svg"
+                        ref={this.svg}
                     >
                         {rows.map((row, i) => {
                             const selected = isRowSelected(row, selectedIds);
@@ -558,6 +591,14 @@ export default class SectionEditor extends React.PureComponent {
                     onSuccess={col => this.onColChange(col)}
                     title="Ingresa el valor de la columna"
                     inputLabel="Columna"
+                />
+                <PromptDialog
+                    open={saveDialogOpen}
+                    onClose={() => this.setState({saveDialogOpen: false})}
+                    onSuccess={fileName => this.download(fileName)}
+                    title="Descargar sección"
+                    defaultValue="seccion.svg"
+                    inputLabel="Nombre del archivo"
                 />
             </div>
         )
@@ -645,7 +686,15 @@ Seat.propTypes = {
     selected: PropTypes.bool
 };
 
-const IconButton = Radium(({icon, label, style, onClick, disabled}) => {
+const IconButton = Radium(({
+    icon,
+    label,
+    style,
+    onClick,
+    disabled,
+    background = '#eee',
+    color = '#555',
+}) => {
     const styles = {
         container: {
             display: 'flex',
@@ -658,13 +707,14 @@ const IconButton = Radium(({icon, label, style, onClick, disabled}) => {
             width: 60,
             height: 60,
             borderRadius: 3,
-            fill: '#555',
-            color: '#555',
+            fill: color,
+            color,
+            background: background,
             ':hover': {
-                background: 'rgba(0,0,0,.1)'
+                background: Color(background).lighten(-.1)
             },
             ':active': {
-                background: 'rgba(0,0,0,.2)'
+                background: Color(background).lighten(-.2)
             },
             ...style,
             ...(disabled && {

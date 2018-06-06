@@ -9,7 +9,12 @@ export default class PromptDialog extends React.PureComponent {
         ...Dialog.propTypes,
         title: PropTypes.string.isRequired,
         inputLabel: PropTypes.string.isRequired,
-        onSuccess: PropTypes.func.isRequired
+        onSuccess: PropTypes.func.isRequired,
+        defaultValue: PropTypes.string,
+    };
+
+    static defaultProps = {
+        defaultValue: ''
     };
 
     state = {
@@ -19,7 +24,9 @@ export default class PromptDialog extends React.PureComponent {
     input = React.createRef();
 
     componentDidUpdate(prevProps) {
-        if(this.props.open && !prevProps.open) {
+        const {open, defaultValue} = this.props;
+        if(open && !prevProps.open) {
+            this.setState({value: defaultValue});
             setTimeout(() => {
                 this.input.current.focus()
             }, 300)
@@ -33,6 +40,9 @@ export default class PromptDialog extends React.PureComponent {
         const styles = {
             dialog: {
                 paddingTop: 0
+            },
+            header: {
+                fontWeight: 600,
             },
             input: {
                 width: '100%',
@@ -48,7 +58,7 @@ export default class PromptDialog extends React.PureComponent {
                 {...props}
                 style={styles.dialog}
             >
-                <h3>{title}</h3>
+                <h3 style={styles.header}>{title}</h3>
                 <Input
                     label={inputLabel}
                     value={value}
