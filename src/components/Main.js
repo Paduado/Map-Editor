@@ -28,11 +28,16 @@ export default class Main extends React.PureComponent {
         this.point = svg.createSVGPoint();
     };
 
-    getCoordinates = e => {
-        this.point.x = e.clientX;
-        this.point.y = e.clientY;
+    getCoordinates = (X, Y, round = true) => {
+        this.point.x = X;
+        this.point.y = Y;
         const {x, y} = this.point.matrixTransform(this.svg.getScreenCTM().inverse());
-        return {x, y};
+        return round ? {
+            x: Math.round(x / 10) * 10,
+            y: Math.round(y / 10) * 10,
+        } : {
+            x, y
+        };
     };
 
     addPolygon = points => {
@@ -40,6 +45,7 @@ export default class Main extends React.PureComponent {
             showPolygonCreator: false,
             polygons: polygons.concat({
                 id: v4(),
+                name: `Figura ${polygons.length + 1}`,
                 points
             }),
         }))
@@ -61,18 +67,30 @@ export default class Main extends React.PureComponent {
                 height: '100vh',
                 background: lightBlue
             },
-            svgContainer: {
+            mainContainer: {
+                display: 'flex',
                 height: 0,
-                width: '100%',
+                flexGrow: 1
+            },
+            svgContainer: {
                 flexGrow: 1,
-                alignSelf: 'center'
             },
             svg: {
                 border: '1px solid #ddd',
                 height: '100%',
                 display: 'block',
                 margin: '0 auto',
-                background: 'white'
+                background: 'white',
+            },
+            sidebar: {
+                background: 'white',
+                width: 300,
+                height: '100%',
+                borderLeft: '1px solid #ddd'
+            },
+            polygonRow: {
+                height: 100,
+                borderBottom: '1px solid #ddd'
             }
         };
         return (
@@ -84,31 +102,44 @@ export default class Main extends React.PureComponent {
                         onClick={() => this.setState({showPolygonCreator: true})}
                     />
                 </ActionBar>
-                <div style={styles.svgContainer}>
+                <div style={styles.mainContainer}>
                     <SvgContext.Provider value={this.svg}>
-                        <svg
-                            viewBox="0 0 1000 1000"
-                            style={styles.svg}
-                            ref={this.ref}
-                        >
-                            <Grid lines={100} step={10}/>
-                            {showPolygonCreator && (
-                                <PolygonCreator
-                                    onSuccess={this.addPolygon}
-                                    onCancel={() => this.setState({showPolygonCreator: false})}
-                                    getCoordinates={this.getCoordinates}
-                                />
-                            )}
-                            {polygons.map(polygon => (
-                                <Polygon
-                                    key={polygon.id}
-                                    polygon={polygon}
-                                    onChange={polygon => this.onPolygonChange(polygon)}
-                                    getCoordinates={this.getCoordinates}
-                                />
-                            ))}
-                        </svg>
+                        <div style={styles.svgContainer}>
+                            <svg
+                                viewBox="0 0 1000 1000"
+                                style={styles.svg}
+                                ref={this.ref}
+                                preserveAspectRatio="xMinYMin"
+                            >
+                                <Grid lines={100} step={10}/>
+                                {showPolygonCreator && (
+                                    <PolygonCreator
+                                        onSuccess={this.addPolygon}
+                                        onCancel={() => this.setState({showPolygonCreator: false})}
+                                        getCoordinates={this.getCoordinates}
+                                    />
+                                )}
+                                {polygons.map(polygon => (
+                                    <Polygon
+                                        key={polygon.id}
+                                        polygon={polygon}
+                                        onChange={polygon => this.onPolygonChange(polygon)}
+                                        getCoordinates={this.getCoordinates}
+                                    />
+                                ))}
+                            </svg>
+                        </div>
                     </SvgContext.Provider>
+                    <div style={styles.sidebar}>
+                        {polygons.map(polygon => (
+                            <div
+                                key={polygon.id}
+                                style={styles.polygonRow}
+                            >
+                                {polygon.name}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
@@ -167,7 +198,9 @@ class PolygonCreator extends React.PureComponent {
             this.props.onCancel();
     };
 
-    onClick = ({x, y}) => {
+    onClick = e => {
+        const {getCoordinates} = this.props;
+        const {x, y} = getCoordinates(e.clientX, e.clientY);
         this.setState(({points}) => ({
             points: points.concat({x, y})
         }))
@@ -203,8 +236,8 @@ class PolygonCreator extends React.PureComponent {
                 />
                 <Layer
                     style={styles.layer}
-                    onClick={e => this.onClick(getCoordinates(e))}
-                    onMouseMove={e => this.setState(getCoordinates(e))}
+                    onClick={this.onClick}
+                    onMouseMove={e => this.setState(getCoordinates(e.clientX, e.clientY))}
                     onDoubleClick={this.onDoubleClick}
                 />
             </Fragment>
@@ -224,16 +257,28 @@ class Polygon extends React.PureComponent {
     state = {
         pointClicked: null,
         x: 0,
-        y: 0
+        y: 0,
+        dragging: false,
+        dragStartX: 0,
+        dragStartY: 0
     };
+
+    figure = React.createRef();
+
+    componentDidMount() {
+        this.forceUpdate();
+    }
 
     onMouseUp = () => {
         const {onChange, polygon} = this.props;
-        const {pointClicked, x, y} = this.state;
+        const {pointClicked, x, y, dragging, dragStartX, dragStartY} = this.state;
         onChange({
             ...polygon,
             points: polygon.points.map(
-                (point, i) => i !== pointClicked ? point : {
+                (point, i) => dragging ? {
+                    x: point.x + x - dragStartX,
+                    y: point.y + y - dragStartY,
+                } : i !== pointClicked ? point : {
                     x,
                     y
                 }
@@ -242,15 +287,48 @@ class Polygon extends React.PureComponent {
         this.setState({
             pointClicked: null,
             x: 0,
-            y: 0
+            y: 0,
+            dragStartX: 0,
+            dragStartY: 0,
+            dragging: false
         })
+    };
+
+    onDragStart = e => {
+        const {getCoordinates} = this.props;
+        const {x, y} = getCoordinates(e.clientX, e.clientY);
+        this.setState({
+            dragging: true,
+            dragStartX: x,
+            dragStartY: y,
+            x,
+            y
+        })
+    };
+
+    onMouseMove = e => {
+        const {getCoordinates} = this.props;
+        const {x, y} = getCoordinates(e.clientX, e.clientY);
+        this.setState({x, y})
     };
 
     render() {
         const {polygon, getCoordinates} = this.props;
-        const {pointClicked, x, y} = this.state;
+        const {pointClicked, x, y, dragging, dragStartX, dragStartY} = this.state;
+        const {
+            top = 0,
+            left = 0,
+            width = 0,
+            height = 0,
+        } = this.figure.current ? this.figure.current.getBoundingClientRect() : {};
+
+        const {x: textX, y: textY} = getCoordinates(left + width / 2, top + height / 2, false);
+
         const points = polygon.points.map(
-            (p, i) => i !== pointClicked ? p : {
+            (point, i) => dragging ? {
+                x: point.x + x - dragStartX,
+                y: point.y + y - dragStartY,
+            } : i !== pointClicked ? point : {
                 x,
                 y
             }
@@ -259,15 +337,19 @@ class Polygon extends React.PureComponent {
             polygon: {
                 stroke: '#ddd',
                 fill: green,
-                pointerEvents: 'all'
+                cursor: 'move'
             },
             point: {
                 fill: 'white',
                 stroke: '#777',
-                cursor: '-webkit-grab'
+                cursor: pointClicked ? '-webkit-grabbing' : '-webkit-grab'
             },
             layer: {
                 cursor: '-webkit-grabbing',
+            },
+            text: {
+                textAnchor: 'middle',
+                dominantBaseline: 'central'
             }
         };
         return (
@@ -275,24 +357,35 @@ class Polygon extends React.PureComponent {
                 <polygon
                     points={points.map(({x, y}) => `${x} ${y}`).join(' ')}
                     style={styles.polygon}
+                    onMouseDown={this.onDragStart}
+                    onMouseMove={dragging ? this.onMouseMove : undefined}
+                    onMouseUp={dragging ? this.onMouseUp : undefined}
+                    ref={this.figure}
                 />
                 {points.map(({x, y}, i) => (
                     <circle
                         key={i}
                         cx={x}
                         cy={y}
-                        r="4"
+                        r="5"
                         style={styles.point}
                         onMouseDown={e => this.setState({
-                            ...getCoordinates(e),
+                            ...getCoordinates(e.clientX, e.clientY),
                             pointClicked: i
                         })}
                     />
                 ))}
+                <text
+                    x={textX}
+                    y={textY}
+                    style={styles.text}
+                >
+                    {polygon.name}
+                </text>
                 {pointClicked !== null && (
                     <Layer
                         style={styles.layer}
-                        onMouseMove={e => this.setState(getCoordinates(e))}
+                        onMouseMove={this.onMouseMove}
                         onMouseUp={this.onMouseUp}
                     />
                 )}
