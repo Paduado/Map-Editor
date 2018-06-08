@@ -1,24 +1,26 @@
 import * as React from 'react'
 import PropTypes from 'prop-types'
 import {seatType} from "../utils/types";
-import {green} from "../utils/colors";
+import {green, lightBlue} from "../utils/colors";
 import Selector from "./Selector";
 import GenerateSectionDialog from "./GenerateSectionDialog";
 import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Download, Generate, Text, Undo} from "./svgs";
 import Radium from "radium";
 import PromptDialog from "./PromptDialog";
 import Color from 'color'
+import ActionBar, {ActionButton} from "./ActionBar";
+import svgScripts, {getSvgHtml} from "../utils/svgScripts";
 
 const getCodeLabel = (offset, startLabel, order) => {
     if(order === 'desc')
         offset *= -1;
     if(!isNaN(Number(startLabel)))
         return Number(startLabel) + offset;
-    else
-        return startLabel.replace(
-            /.$/,
-            c => String.fromCharCode(c.charCodeAt(0) + offset)
-        );
+
+    return startLabel.replace(
+        /.$/,
+        c => String.fromCharCode(c.charCodeAt(0) + offset)
+    );
 };
 
 const LETTERS_SPACE = 50;
@@ -378,10 +380,9 @@ export default class SectionEditor extends React.PureComponent {
     };
 
     download = fileName => {
-        const svg = this.svg.current.cloneNode(true);
-        svg.style = '';
+        const {viewBox, rows} = this.state;
         const data = new Blob(
-            [svg.outerHTML],
+            [getSvgHtml({viewBox, rows})],
             {type: 'image/svg+xml'}
         );
         this.a.href = URL.createObjectURL(data);
@@ -411,7 +412,8 @@ export default class SectionEditor extends React.PureComponent {
                 height: '100vh',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center'
+                alignItems: 'center',
+                background: lightBlue
             },
             actionBar: {
                 height: 80,
@@ -421,114 +423,89 @@ export default class SectionEditor extends React.PureComponent {
                 alignItems: 'center',
                 flexShrink: 0
             },
-            actionGroup: {
-                display: 'flex',
-                height: '100%',
-                alignItems: 'center',
-                padding: '0',
-                margin: '0 10px',
-                borderLeft: '1px solid #ddd',
-                flexWrap: 'wrap',
-                position: 'relative',
-            },
-            actionGroupLabel: {
-                textAlign: 'center',
-                fontSize: '.8rem',
-                top: -5,
-                left: 0,
-                right: 0,
-                position: 'absolute',
-                color: '#999'
-            },
-            actionButton: {
-                margin: '0 5px',
-            },
             separator: {
                 height: '100%',
                 width: 1,
                 background: '#ddd',
                 margin: '0 10px'
             },
-            svg: {
-                width: '100%',
+            svgContainer: {
                 height: 0,
+                width: '100%',
                 flexGrow: 1,
+                alignSelf: 'center'
+            },
+            svg: {
                 border: '1px solid #ddd',
-                display: 'block'
+                height: '100%',
+                display: 'block',
+                margin: '0 auto',
+                background: 'white',
+                maxWidth: '100%'
             }
         };
 
         return (
             <div style={styles.container}>
-                <div style={styles.actionBar}>
-                    <IconButton
-                        style={styles.actionButton}
+                <ActionBar>
+                    <ActionButton
                         icon={<Generate/>}
                         onClick={() => this.setState({generateDialogOpen: true})}
                         label="Generar"
                     />
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<Undo/>}
                         onClick={this.undo}
                         label="Deshacer"
                         disabled={history.length === 0}
                     />
                     <div style={styles.separator}/>
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<Delete/>}
                         onClick={this.onDelete}
                         label={`Eliminar asiento${selectedIds.length > 1 ? 's' : ''}`}
                         disabled={selectedIds.length === 0}
                     />
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<Text/>}
                         onClick={() => this.setState({colChangeDialogOpen: true})}
                         label="Cambiar columna"
                         disabled={selectedIds.length === 0}
                     />
                     <div style={styles.separator}/>
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<Text/>}
                         onClick={() => this.setState({rowChangeDialogOpen: true})}
                         label="Cambiar fila"
                         disabled={isNoRowSelected}
                     />
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<DeleteRow/>}
                         onClick={this.onRowDelete}
                         label="Eliminar fila"
                         disabled={isNoRowSelected}
                     />
                     <div style={styles.separator}/>
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<AlignLeft/>}
                         onClick={this.onRowLeftAlign}
                         label="Alinear izquierda"
                         disabled={isNoRowSelected}
                     />
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<AlignCenter/>}
                         onClick={this.onRowCenter}
                         label="Alinear centro"
                         disabled={isNoRowSelected}
                     />
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<AlignRight/>}
                         onClick={this.onRowRightAlign}
                         label="Alinear derecha"
                         disabled={isNoRowSelected}
                     />
                     <div style={styles.separator}/>
-                    <IconButton
-                        style={styles.actionButton}
+                    <ActionButton
                         icon={<Download/>}
                         onClick={() => this.setState({saveDialogOpen: true})}
                         label="Descargar"
@@ -536,42 +513,43 @@ export default class SectionEditor extends React.PureComponent {
                         color="white"
                         disabled={!rows.some(({cols}) => cols.length > 0)}
                     />
+                </ActionBar>
+                <div style={styles.svgContainer}>
+                    <Selector onSelect={this.onMultiSelect}>
+                        <svg
+                            style={styles.svg}
+                            viewBox={viewBox}
+                            ref={this.svg}
+                        >
+                            {rows.map((row, i) => {
+                                const selected = isRowSelected(row, selectedIds);
+                                return (
+                                    <React.Fragment key={i}>
+                                        <RowLabel
+                                            y={row.y}
+                                            x={row.x}
+                                            onClick={() => this.onRowClick(row, selected)}
+                                            children={row.name}
+                                            size={row.size}
+                                            selected={selected}
+                                        />
+                                        {row.cols.map(circle => {
+                                            const selected = selectedIds.includes(circle.id);
+                                            return (
+                                                <Seat
+                                                    key={circle.id}
+                                                    seat={circle}
+                                                    onClick={() => this.onSeatClick(circle.id, selected)}
+                                                    selected={selected}
+                                                />
+                                            )
+                                        })}
+                                    </React.Fragment>
+                                )
+                            })}
+                        </svg>
+                    </Selector>
                 </div>
-                <Selector onSelect={this.onMultiSelect}>
-                    <svg
-                        style={styles.svg}
-                        viewBox={viewBox}
-                        xmlns="http://www.w3.org/2000/svg"
-                        ref={this.svg}
-                    >
-                        {rows.map((row, i) => {
-                            const selected = isRowSelected(row, selectedIds);
-                            return (
-                                <React.Fragment key={i}>
-                                    <RowLabel
-                                        y={row.y}
-                                        x={row.x}
-                                        onClick={() => this.onRowClick(row, selected)}
-                                        children={row.name}
-                                        size={row.size}
-                                        selected={selected}
-                                    />
-                                    {row.cols.map(circle => {
-                                        const selected = selectedIds.includes(circle.id);
-                                        return (
-                                            <Seat
-                                                key={circle.id}
-                                                seat={circle}
-                                                onClick={() => this.onSeatClick(circle.id, selected)}
-                                                selected={selected}
-                                            />
-                                        )
-                                    })}
-                                </React.Fragment>
-                            )
-                        })}
-                    </svg>
-                </Selector>
 
                 <GenerateSectionDialog
                     open={generateDialogOpen}
@@ -597,7 +575,7 @@ export default class SectionEditor extends React.PureComponent {
                     onClose={() => this.setState({saveDialogOpen: false})}
                     onSuccess={fileName => this.download(fileName)}
                     title="Descargar sección"
-                    defaultValue="seccion.svg"
+                    defaultValue="seccion"
                     inputLabel="Nombre del archivo"
                 />
             </div>
@@ -607,7 +585,7 @@ export default class SectionEditor extends React.PureComponent {
 
 function RowLabel({style, size, selected, ...props}) {
     const defaultStyle = {
-        fontSize: size,
+        fontSize: Math.min(size, LETTERS_SPACE),
         textAnchor: 'middle',
         dominantBaseline: 'central',
         cursor: 'pointer',
@@ -686,56 +664,3 @@ Seat.propTypes = {
     selected: PropTypes.bool
 };
 
-const IconButton = Radium(({
-    icon,
-    label,
-    style,
-    onClick,
-    disabled,
-    background = '#eee',
-    color = '#555',
-}) => {
-    const styles = {
-        container: {
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            transition: 'all 100ms',
-            cursor: 'pointer',
-            border: '0',
-            padding: 5,
-            width: 60,
-            height: 60,
-            borderRadius: 3,
-            fill: color,
-            color,
-            background: background,
-            ':hover': {
-                background: Color(background).lighten(-.1)
-            },
-            ':active': {
-                background: Color(background).lighten(-.2)
-            },
-            ...style,
-            ...(disabled && {
-                opacity: .5,
-                pointerEvents: 'none'
-            })
-        },
-        label: {
-            fontSize: '.8rem',
-        }
-    };
-
-    return (
-        <button
-            onClick={disabled ? undefined : onClick}
-            style={styles.container}
-        >
-            {icon}
-            <div style={styles.label}>
-                {label}
-            </div>
-        </button>
-    )
-});

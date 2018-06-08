@@ -1,6 +1,9 @@
 import React from 'react';
 import PropTypes from 'prop-types'
 import PenIcon from '../img/pen.png'
+import ActionBar, {ActionButton} from "./ActionBar";
+import {Add} from "./svgs";
+import {green, lightBlue} from "../utils/colors";
 
 
 export default class Main extends React.PureComponent {
@@ -23,16 +26,15 @@ export default class Main extends React.PureComponent {
         this.point = svg.createSVGPoint();
     };
 
-    getRelativeCoordinates = e => {
-        const {clientX: X, clientY: Y} = e;
-        this.point.x = X;
-        this.point.y = Y;
+    getCoordinates = e => {
+        this.point.x = e.clientX;
+        this.point.y = e.clientY;
         const {x, y} = this.point.matrixTransform(this.svg.getScreenCTM().inverse());
         return {x, y};
     };
 
     onMouseMove = e => {
-        const {x, y} = this.getRelativeCoordinates(e);
+        const {x, y} = this.getCoordinates(e);
         this.setState(({mouse}) => ({
             mouse: {
                 ...mouse,
@@ -84,7 +86,7 @@ export default class Main extends React.PureComponent {
 
     onClick = e => {
         e.stopPropagation();
-        const {x, y} = this.getRelativeCoordinates(e);
+        const {x, y} = this.getCoordinates(e);
         this.clickTimeout = setTimeout(() => {
             this.setState(({points, editMode}) => {
                 if(!editMode)
@@ -131,52 +133,76 @@ export default class Main extends React.PureComponent {
         }
     });
 
-    onPolygonChange = (index, polygon) => this.setState(({polygons}) => ({
-        polygons: polygons.map((p, i) => i !== index ? p : polygon)
-    }));
+    onPolygonChange = (index, polygon) => {
+        this.setState(({polygons}) => ({
+            polygons: polygons.map((p, i) => i !== index ? p : polygon)
+        }));
+    };
 
 
     render() {
         const {points, editMode, mouse, polygons} = this.state;
         const styles = {
+            container: {
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100vh',
+                background: lightBlue
+            },
+            svgContainer: {
+                height: 0,
+                width: '100%',
+                flexGrow: 1,
+                alignSelf: 'center'
+            },
             svg: {
-                display: 'block',
                 border: '1px solid #ddd',
-                cursor: editMode && `crosshair`
+                cursor: editMode && `crosshair`,
+                height: '100%',
+                display: 'block',
+                margin: '0 auto',
+                background: 'white'
             }
         };
         return (
-            <div>
-                <button onClick={() => this.setState({editMode: true})}>Edit</button>
-                <svg
-                    width="1000px"
-                    height="1000px"
-                    viewBox="0 0 1000 1000"
-                    style={styles.svg}
-                    onClick={this.onClick}
-                    onMouseMove={this.onMouseMove}
-                    onMouseDown={this.onMouseDown}
-                    // onMouseUp={() => this.setState({editMode: false})}
-                    ref={this.ref}
-                    onDoubleClick={this.onDoubleClick}
-                    onMouseUp={this.onMouseUp}
-                >
-                    <Grid lines={100} step={10}/>
-                    <polyline
-                        points={points.concat(mouse).map(({x, y}) => `${x} ${y}`).join(',')}
-                        fill="none"
-                        stroke="darkcyan"
+            <div style={styles.container}>
+                <ActionBar>
+                    <ActionButton
+                        label="Nueva sección"
+                        icon={<Add/>}
+                        onClick={() => this.setState({editMode: true})}
                     />
-                    {polygons.map((polygon, i) => (
-                        <Polygon
-                            key={i}
-                            points={polygon.points}
-                            onPointMouseDown={index => this.setState({pointClicked: {index, polygonIndex: i}})}
-                            mouse={mouse}
-                            onChange={polygon => this.onPolygonChange(i, polygon)}
+                </ActionBar>
+                <div style={styles.svgContainer}>
+                    <svg
+                        viewBox="0 0 1000 1000"
+                        style={styles.svg}
+                        onClick={this.onClick}
+                        onMouseMove={this.onMouseMove}
+                        onMouseDown={this.onMouseDown}
+                        // onMouseUp={() => this.setState({editMode: false})}
+                        ref={this.ref}
+                        onDoubleClick={this.onDoubleClick}
+                        onMouseUp={this.onMouseUp}
+                    >
+                        <Grid lines={100} step={10}/>
+                        <polyline
+                            points={points.concat(mouse).map(({x, y}) => `${x} ${y}`).join(',')}
+                            fill="none"
+                            stroke="darkcyan"
                         />
-                    ))}
-                </svg>
+                        {polygons.map((polygon, i) => (
+                            <Polygon
+                                key={i}
+                                points={polygon.points}
+                                onPointMouseDown={index => this.setState({pointClicked: {index, polygonIndex: i}})}
+                                mouse={mouse}
+                                onChange={polygon => this.onPolygonChange(i, polygon)}
+                            />
+                        ))}
+                    </svg>
+                </div>
             </div>
         );
     }
@@ -222,9 +248,9 @@ class Polygon extends React.PureComponent {
             <g>
                 <polygon
                     points={points.map(({x, y}) => `${x} ${y}`).join(' ')}
-                    stroke="darkcyan"
-                    strokeWidth="1"
-                    fill="#eef"
+                    stroke="#ddd"
+                    // strokeWidth="1"
+                    fill={green}
                     style={{pointerEvents: 'all'}}
                 />
                 {points.map(({x, y}, i) => (
@@ -244,14 +270,14 @@ class Polygon extends React.PureComponent {
     }
 }
 
-const Grid = ({lines, step}) => Array(lines - 1).fill().map((_, i) => (
+const Grid = ({lines, step}) => Array.from({length: lines - 1}, (_, i) => (
     <React.Fragment key={i}>
         <line
             x1="0"
             x2="1000"
             y1={(i + 1) * step}
             y2={(i + 1) * step}
-            stroke="#dde"
+            stroke="#eee"
             strokeWidth="1"
         />
         <line
@@ -259,7 +285,7 @@ const Grid = ({lines, step}) => Array(lines - 1).fill().map((_, i) => (
             x2={(i + 1) * step}
             y1="0"
             y2="1000"
-            stroke="#dde"
+            stroke="#eee"
             strokeWidth="1"
         />
     </React.Fragment>
