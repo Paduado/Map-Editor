@@ -5,11 +5,9 @@ import {green, lightBlue} from "../utils/colors";
 import Selector from "./Selector";
 import GenerateSectionDialog from "./GenerateSectionDialog";
 import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Download, Generate, Text, Undo} from "./svgs";
-import Radium from "radium";
 import PromptDialog from "./PromptDialog";
-import Color from 'color'
 import ActionBar, {ActionButton} from "./ActionBar";
-import svgScripts, {getSvgHtml} from "../utils/svgScripts";
+import {getSvgHtml} from "../utils/svgScripts";
 
 const getCodeLabel = (offset, startLabel, order) => {
     if(order === 'desc')
