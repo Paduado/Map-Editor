@@ -1,27 +1,35 @@
 import React, {Fragment} from 'react';
 import PropTypes from 'prop-types'
 import ActionBar, {ActionButton} from "./ActionBar";
-import {Add} from "./svgs";
+import {Add, Square} from "./svgs";
 import {green, lightBlue} from "../utils/colors";
 import {v4} from 'uuid'
-import {pointType} from "../utils/types";
+import {pointType, polygonType} from "../utils/types";
 import * as ReactDOM from "react-dom";
+import Input from "./Input";
 
 const SvgContext = React.createContext();
 
 export default class Main extends React.PureComponent {
     state = {
-        polygons: [],
-        showPolygonCreator: false,
+        figures: [],
+        addMode: null
     };
 
     componentDidMount() {
         window.addEventListener('resize', () => this.forceUpdate());
+        window.addEventListener('keydown', this.onKeyDown);
     }
 
     componentWillUnmount() {
         window.removeEventListener('resize', () => this.forceUpdate());
+        window.removeEventListener('keydown', this.onKeyDown);
     }
+
+    onKeyDown = ({key}) => {
+        if(key === 'Escape')
+            this.setState({addMode: null})
+    };
 
     ref = svg => {
         this.svg = svg;
@@ -41,24 +49,27 @@ export default class Main extends React.PureComponent {
     };
 
     addPolygon = points => {
-        this.setState(({polygons}) => ({
-            showPolygonCreator: false,
-            polygons: polygons.concat({
+        this.setState(({figures}) => ({
+            addMode: null,
+            figures: figures.concat({
                 id: v4(),
-                name: `Figura ${polygons.length + 1}`,
+                color: green,
+                type: 'polygon',
                 points
             }),
         }))
     };
 
     onPolygonChange = polygon => {
-        this.setState(({polygons}) => ({
-            polygons: polygons.map(p => p.id !== polygon.id ? p : polygon)
+        this.setState(({figures}) => ({
+            figures: figures.map(
+                f => f.id !== polygon.id ? f : polygon
+            )
         }));
     };
 
     render() {
-        const {showPolygonCreator, polygons} = this.state;
+        const {addMode, figures} = this.state;
         const styles = {
             container: {
                 width: '100%',
@@ -86,11 +97,12 @@ export default class Main extends React.PureComponent {
                 background: 'white',
                 width: 300,
                 height: '100%',
-                borderLeft: '1px solid #ddd'
+                borderLeft: '1px solid #ddd',
+                overflow: 'auto'
             },
             polygonRow: {
-                height: 100,
-                borderBottom: '1px solid #ddd'
+                borderBottom: '1px solid #ddd',
+                padding: 10
             }
         };
         return (
@@ -99,7 +111,12 @@ export default class Main extends React.PureComponent {
                     <ActionButton
                         label="Nueva sección"
                         icon={<Add/>}
-                        onClick={() => this.setState({showPolygonCreator: true})}
+                        onClick={() => this.setState({addMode: 'polygon'})}
+                    />
+                    <ActionButton
+                        label="Cuadrado"
+                        icon={<Square/>}
+                        onClick={() => this.setState({addMode: 'square'})}
                     />
                 </ActionBar>
                 <div style={styles.mainContainer}>
@@ -109,17 +126,23 @@ export default class Main extends React.PureComponent {
                                 viewBox="0 0 1000 1000"
                                 style={styles.svg}
                                 ref={this.ref}
-                                preserveAspectRatio="xMinYMin"
                             >
                                 <Grid lines={100} step={10}/>
-                                {showPolygonCreator && (
+                                {addMode === 'square' && (
+                                    <SquareCreator
+                                        onSuccess={this.addPolygon}
+                                        onCancel={() => this.setState({showSquareCreator: false})}
+                                        getCoordinates={this.getCoordinates}
+                                    />
+                                )}
+                                {addMode === 'polygon' && (
                                     <PolygonCreator
                                         onSuccess={this.addPolygon}
                                         onCancel={() => this.setState({showPolygonCreator: false})}
                                         getCoordinates={this.getCoordinates}
                                     />
                                 )}
-                                {polygons.map(polygon => (
+                                {figures.map(polygon => (
                                     <Polygon
                                         key={polygon.id}
                                         polygon={polygon}
@@ -131,13 +154,11 @@ export default class Main extends React.PureComponent {
                         </div>
                     </SvgContext.Provider>
                     <div style={styles.sidebar}>
-                        {polygons.map(polygon => (
-                            <div
-                                key={polygon.id}
-                                style={styles.polygonRow}
-                            >
-                                {polygon.name}
-                            </div>
+                        {figures.map(polygon => polygon.type === 'polygon' && (
+                            <PolygonRow
+                                polygon={polygon}
+                                onChange={this.onPolygonChange}
+                            />
                         ))}
                     </div>
                 </div>
@@ -173,6 +194,130 @@ const Layer = ({style, ...props}) => (
     </SvgContext.Consumer>
 );
 
+const FigureRow = ({style, ...props}) => {
+    const styles = {
+        borderBottom: '1px solid #ddd',
+        padding: 10,
+        ...props
+    };
+
+    return (
+        <div
+            style={styles.container}
+            {...props}
+        />
+    )
+};
+
+
+const PolygonRow = ({polygon, onChange}) => (
+    <FigureRow>
+        <Input
+            label="Color"
+            value={polygon.color}
+            type="color"
+            onChange={(e, color) => onChange(({
+                ...polygon,
+                color
+            }))}
+        />
+    </FigureRow>
+);
+
+PolygonRow.propTypes = {
+    polygon: polygonType.isRequired,
+    onChange: PropTypes.func.isRequired
+};
+
+class SquareCreator extends React.PureComponent {
+    static propTypes = {
+        onSuccess: PropTypes.func.isRequired,
+        onCancel: PropTypes.func.isRequired,
+        getCoordinates: PropTypes.func.isRequired
+    };
+    state = {
+        startX: 0,
+        startY: 0,
+        x: 0,
+        y: 0,
+        drawStart: false,
+    };
+
+    onStart = e => {
+        const {getCoordinates} = this.props;
+        const {x, y} = getCoordinates(e.clientX, e.clientY);
+        this.setState({
+            startX: x,
+            startY: y,
+            drawStart: true
+        })
+    };
+
+    onEnd = e => {
+        const {getCoordinates} = this.props;
+        const {x, y} = getCoordinates(e.clientX, e.clientY);
+        const {onSuccess, onCancel} = this.props;
+        const {startX, startY, drawStart} = this.state;
+
+        if(drawStart && startX !== x && startY !== y)
+            onSuccess([{
+                x: startX,
+                y: startY
+            }, {
+                x: x,
+                y: startY
+            }, {
+                x: x,
+                y: y
+            }, {
+                x: startX,
+                y: y
+            }]);
+        else
+            onCancel();
+
+        this.setState({
+            startX: 0,
+            startY: 0,
+            x: 0,
+            y: 0,
+            drawStart: false,
+        });
+    };
+
+    render() {
+        const {getCoordinates} = this.props;
+        const {drawStart, x, y, startX, startY} = this.state;
+        const styles = {
+            layer: {
+                cursor: 'crosshair'
+            }
+        };
+        return (
+            <Fragment>
+                {drawStart && (
+                    <polyline
+                        fill="none"
+                        stroke="#777"
+                        points={`
+                            ${startX} ${startY}
+                            ${x} ${startY}
+                            ${x} ${y}
+                            ${startX} ${y}
+                            ${startX} ${startY}
+                        `}
+                    />
+                )}
+                <Layer
+                    style={styles.layer}
+                    onMouseMove={e => this.setState(getCoordinates(e.clientX, e.clientY))}
+                    onClick={drawStart ? this.onEnd : this.onStart}
+                />
+            </Fragment>
+        )
+    }
+}
+
 class PolygonCreator extends React.PureComponent {
     static propTypes = {
         onSuccess: PropTypes.func.isRequired,
@@ -183,19 +328,6 @@ class PolygonCreator extends React.PureComponent {
         points: [],
         x: 0,
         y: 0
-    };
-
-    componentDidMount() {
-        window.addEventListener('keydown', this.onKeyDown);
-    }
-
-    componentWillUnmount() {
-        window.removeEventListener('keydown', this.onKeyDown);
-    }
-
-    onKeyDown = ({key}) => {
-        if(key === 'Escape')
-            this.props.onCancel();
     };
 
     onClick = e => {
@@ -229,10 +361,10 @@ class PolygonCreator extends React.PureComponent {
             <Fragment>
                 <polyline
                     fill="none"
-                    stroke="darkcyan"
+                    stroke="#777"
                     points={points.concat({x, y}).map(
                         ({x, y}) => `${x} ${y}`
-                    ).join(',')}
+                    ).join(' ')}
                 />
                 <Layer
                     style={styles.layer}
@@ -247,9 +379,7 @@ class PolygonCreator extends React.PureComponent {
 
 class Polygon extends React.PureComponent {
     static propTypes = {
-        polygon: PropTypes.shape({
-            points: PropTypes.arrayOf(pointType).isRequired,
-        }).isRequired,
+        polygon: polygonType.isRequired,
         onChange: PropTypes.func.isRequired,
         getCoordinates: PropTypes.func.isRequired,
     };
@@ -262,8 +392,6 @@ class Polygon extends React.PureComponent {
         dragStartX: 0,
         dragStartY: 0
     };
-
-    figure = React.createRef();
 
     componentDidMount() {
         this.forceUpdate();
@@ -315,14 +443,6 @@ class Polygon extends React.PureComponent {
     render() {
         const {polygon, getCoordinates} = this.props;
         const {pointClicked, x, y, dragging, dragStartX, dragStartY} = this.state;
-        const {
-            top = 0,
-            left = 0,
-            width = 0,
-            height = 0,
-        } = this.figure.current ? this.figure.current.getBoundingClientRect() : {};
-
-        const {x: textX, y: textY} = getCoordinates(left + width / 2, top + height / 2, false);
 
         const points = polygon.points.map(
             (point, i) => dragging ? {
@@ -336,7 +456,7 @@ class Polygon extends React.PureComponent {
         const styles = {
             polygon: {
                 stroke: '#ddd',
-                fill: green,
+                fill: polygon.color,
                 cursor: 'move'
             },
             point: {
@@ -346,10 +466,6 @@ class Polygon extends React.PureComponent {
             },
             layer: {
                 cursor: '-webkit-grabbing',
-            },
-            text: {
-                textAnchor: 'middle',
-                dominantBaseline: 'central'
             }
         };
         return (
@@ -360,7 +476,7 @@ class Polygon extends React.PureComponent {
                     onMouseDown={this.onDragStart}
                     onMouseMove={dragging ? this.onMouseMove : undefined}
                     onMouseUp={dragging ? this.onMouseUp : undefined}
-                    ref={this.figure}
+                    onMouseLeave={dragging ? this.onMouseUp : undefined}
                 />
                 {points.map(({x, y}, i) => (
                     <circle
@@ -375,13 +491,6 @@ class Polygon extends React.PureComponent {
                         })}
                     />
                 ))}
-                <text
-                    x={textX}
-                    y={textY}
-                    style={styles.text}
-                >
-                    {polygon.name}
-                </text>
                 {pointClicked !== null && (
                     <Layer
                         style={styles.layer}

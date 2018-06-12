@@ -18,3 +18,9 @@ export const seatType = PropTypes.shape({
     y: PropTypes.number.isRequired,
     radium: PropTypes.number.isRequired,
 });
+
+export const polygonType = PropTypes.shape({
+    name: PropTypes.string.isRequired,
+    color: PropTypes.string.isRequired,
+    points: PropTypes.arrayOf(pointType).isRequired,
+});

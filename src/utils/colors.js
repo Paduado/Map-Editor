@@ -1,2 +1,2 @@
-export const green = 'rgb(139, 194, 73)';
+export const green = '#8bc249';
 export const lightBlue = 'aliceblue';
