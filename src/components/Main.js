@@ -1,13 +1,14 @@
 import React, {Fragment} from 'react';
 import PropTypes from 'prop-types'
 import ActionBar, {ActionButton} from "./ActionBar";
-import {Add, Delete, Square, Text as TextIcon} from "./svgs";
+import {Delete, Square, Text as TextIcon, Polygon as PolygonIcon} from "./svgs";
 import {green, lightBlue} from "../utils/colors";
 import {v4} from 'uuid'
 import {polygonType} from "../utils/types";
 import * as ReactDOM from "react-dom";
 import Input from "./Input";
 import Radium from "radium";
+import Button from "./Button";
 
 const SvgContext = React.createContext();
 
@@ -15,7 +16,12 @@ export default class Main extends React.PureComponent {
     state = {
         figures: [],
         selectedFigureIds: [],
-        addMode: null
+        addMode: null,
+        dragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        dragEndX: 0,
+        dragEndY: 0
     };
 
     componentDidMount() {
@@ -50,16 +56,6 @@ export default class Main extends React.PureComponent {
         };
     };
 
-    selectFigure = id => {
-        this.setState(({selectedFigureIds}) =>
-            selectedFigureIds.includes(id)
-                ? null
-                : {
-                    selectedFigureIds: selectedFigureIds.concat(id)
-                }
-        )
-    };
-
     addPolygon = points => {
         this.setState(({figures}) => ({
             addMode: null,
@@ -71,6 +67,80 @@ export default class Main extends React.PureComponent {
             }),
         }))
     };
+
+    toggleFigureSelected = id => {
+        this.setState(({selectedFigureIds}) => ({
+            selectedFigureIds: selectedFigureIds.includes(id)
+                ? selectedFigureIds.filter(ID => ID !== id)
+                : [...new Set(selectedFigureIds.concat(id))],
+        }))
+    };
+
+    onDragStart = (e, id) => {
+        e.preventDefault();
+        const {x, y} = this.getCoordinates(e.clientX, e.clientY);
+        this.setState(({selectedFigureIds}) => ({
+            selectedFigureIds: [...new Set(selectedFigureIds.concat(id))],
+            dragging: true,
+            dragStartX: x,
+            dragStartY: y,
+            dragEndX: x,
+            dragEndY: y,
+        }))
+    };
+
+    onDrag = e => {
+        const {x, y} = this.getCoordinates(e.clientX, e.clientY);
+        this.setState({
+            dragEndX: x,
+            dragEndY: y,
+        });
+    };
+
+    onDragEnd = () => {
+        this.setState(state => ({
+            figures: this.getDraggedFigures(state),
+            dragging: false,
+            dragStartX: 0,
+            dragStartY: 0,
+            dragEndX: 0,
+            dragEndY: 0,
+        }))
+    };
+
+    getDraggedFigures = ({
+        figures,
+        selectedFigureIds,
+        dragStartX,
+        dragStartY,
+        dragEndX,
+        dragEndY
+    }) => figures.map(figure => {
+        if(!selectedFigureIds.includes(figure.id))
+            return figure;
+        switch(figure.type) {
+            case 'polygon':
+            case 'section':
+                return {
+                    ...figure,
+                    points: figure.points.map(
+                        point => ({
+                            x: point.x + dragEndX - dragStartX,
+                            y: point.y + dragEndY - dragStartY,
+                        })
+                    )
+                };
+            case 'text':
+                return {
+                    ...figure,
+                    x: figure.x + dragEndX - dragStartX,
+                    y: figure.y + dragEndY - dragStartY,
+                };
+            default:
+                return figure;
+        }
+    });
+
 
     onFigureChange = polygon => {
         this.setState(({figures}) => ({
@@ -103,7 +173,8 @@ export default class Main extends React.PureComponent {
     };
 
     render() {
-        const {addMode, figures, selectedFigureIds} = this.state;
+        const {addMode, selectedFigureIds, dragging} = this.state;
+        const figures = dragging ? this.getDraggedFigures(this.state) : this.state.figures;
         const styles = {
             container: {
                 width: '100%',
@@ -143,8 +214,8 @@ export default class Main extends React.PureComponent {
             <div style={styles.container}>
                 <ActionBar>
                     <ActionButton
-                        label="Nueva sección"
-                        icon={<Add/>}
+                        label="Polígono"
+                        icon={<PolygonIcon/>}
                         onClick={() => this.setState({addMode: 'polygon'})}
                     />
                     <ActionButton
@@ -163,6 +234,8 @@ export default class Main extends React.PureComponent {
                         <div
                             style={styles.svgContainer}
                             onClick={() => this.setState({selectedFigureIds: []})}
+                            onMouseMove={dragging ? this.onDrag : undefined}
+                            onMouseUp={this.onDragEnd}
                         >
                             <svg
                                 viewBox="0 0 1000 1000"
@@ -192,22 +265,22 @@ export default class Main extends React.PureComponent {
                                     />
                                 )}
                                 {figures.map(figure =>
-                                    figure.type === 'polygon' ? (
+                                    (figure.type === 'polygon' || figure.type === 'section') ? (
                                         <Polygon
                                             key={figure.id}
                                             polygon={figure}
                                             onChange={figure => this.onFigureChange(figure)}
                                             getCoordinates={this.getCoordinates}
                                             selected={selectedFigureIds.includes(figure.id)}
-                                            onClick={() => this.selectFigure(figure.id)}
+                                            onMouseDown={(e) => this.onDragStart(e, figure.id)}
                                         />
                                     ) : figure.type === 'text' && (
                                         <Text
                                             key={figure.id}
                                             text={figure}
                                             selected={selectedFigureIds.includes(figure.id)}
-                                            onClick={() => this.selectFigure(figure.id)}
                                             getCoordinates={this.getCoordinates}
+                                            onMouseDown={(e) => this.onDragStart(e, figure.id)}
                                         />
                                     )
                                 )}
@@ -220,17 +293,22 @@ export default class Main extends React.PureComponent {
                                 key={figure.id}
                                 index={i}
                                 selected={selectedFigureIds.includes(figure.id)}
-                                onClick={() => this.selectFigure(figure.id)}
+                                onClick={() => this.toggleFigureSelected(figure.id)}
                                 onDelete={() => this.onFigureDelete(figure.id)}
                             >
                                 {figure.type === 'polygon' ? (
                                     <PolygonRow
-                                        polygon={figure}
+                                        figure={figure}
                                         onChange={this.onFigureChange}
                                     />
-                                ) : figure.type === 'text' && (
+                                ) : figure.type === 'text' ? (
                                     <TextRow
-                                        text={figure}
+                                        figure={figure}
+                                        onChange={this.onFigureChange}
+                                    />
+                                ) : figure.type === 'section' && (
+                                    <SectionRow
+                                        figure={figure}
                                         onChange={this.onFigureChange}
                                     />
                                 )}
@@ -288,7 +366,14 @@ const FigureRow = ({style, children, index, selected, onDelete, ...props}) => {
         header: {
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            marginBottom: 10
+        },
+        body: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gridGap: 15,
+            alignItems: 'flex-end'
         },
         button: {
             fill: '#999',
@@ -310,35 +395,90 @@ const FigureRow = ({style, children, index, selected, onDelete, ...props}) => {
                     style={styles.button}
                 />
             </div>
-            {children}
+            <div style={styles.body}>
+                {children}
+            </div>
         </div>
     )
 };
 
 
-const PolygonRow = ({polygon, onChange}) => (
-    <Input
-        label="Color"
-        value={polygon.color}
-        type="color"
-        onChange={(e, color) => onChange(({
-            ...polygon,
-            color
-        }))}
-    />
+const PolygonRow = ({figure, onChange}) => (
+    <Fragment>
+        <Input
+            label="Color"
+            style={{width: '100%'}}
+            value={figure.color}
+            type="color"
+            onChange={(e, color) => onChange(({
+                ...figure,
+                color
+            }))}
+        />
+        <Button
+            style={{margin: 0}}
+            label="Marcar como sección"
+            onClick={() => onChange(({
+                ...figure,
+                type: 'section',
+                code: '',
+                availability: 0,
+                svg: null
+            }))}
+        />
+    </Fragment>
 );
 
 PolygonRow.propTypes = {
-    polygon: polygonType.isRequired,
+    figure: polygonType.isRequired,
     onChange: PropTypes.func.isRequired
 };
 
-const TextRow = ({text, onChange}) => (
+const SectionRow = ({figure, onChange}) => (
+    <Fragment>
+        <Input
+            label="Código"
+            style={{width: '100%'}}
+            value={figure.code}
+            onChange={(e, code) => onChange(({
+                ...figure,
+                code
+            }))}
+        />
+        <Input
+            label="Disponibilidad"
+            style={{width: '100%'}}
+            type="number"
+            value={figure.availability}
+            onChange={(e, availability) => onChange(({
+                ...figure,
+                availability
+            }))}
+        />
+        <Input
+            label="Color"
+            style={{width: '100%'}}
+            value={figure.color}
+            type="color"
+            onChange={(e, color) => onChange(({
+                ...figure,
+                color
+            }))}
+        />
+        <Button
+            style={{margin: 0}}
+            label="Agregar numeración"
+        />
+    </Fragment>
+);
+
+const TextRow = ({figure, onChange}) => (
     <Input
         label="Texto"
-        value={text.value}
+        style={{width: '100%'}}
+        value={figure.value}
         onChange={(e, value) => onChange(({
-            ...text,
+            ...figure,
             value
         }))}
     />
@@ -352,7 +492,6 @@ class Text extends React.PureComponent {
             value: PropTypes.string.isRequired,
         }),
         getCoordinates: PropTypes.func.isRequired,
-        onClick: PropTypes.func.isRequired,
         selected: PropTypes.bool,
     };
 
@@ -370,12 +509,6 @@ class Text extends React.PureComponent {
     componentDidUpdate() {
         this.measure();
     }
-
-    onClick = e => {
-        e.stopPropagation();
-        const {onClick} = this.props;
-        onClick(e)
-    };
 
     measure = () => {
         const {
@@ -395,7 +528,7 @@ class Text extends React.PureComponent {
     };
 
     render() {
-        const {text, selected} = this.props;
+        const {text, selected, onMouseDown} = this.props;
         const {
             x,
             y,
@@ -418,8 +551,9 @@ class Text extends React.PureComponent {
                     x={text.x}
                     y={text.y}
                     style={styles.text}
-                    onClick={this.onClick}
+                    onClick={e => e.stopPropagation()}
                     ref={text => this.text = text}
+                    onMouseDown={onMouseDown}
                 >
                     {text.value}
                 </text>
@@ -650,67 +784,33 @@ class Polygon extends React.PureComponent {
         pointClicked: null,
         x: 0,
         y: 0,
-        dragging: false,
-        dragStartX: 0,
-        dragStartY: 0
     };
-
-    componentDidMount() {
-        this.forceUpdate();
-        console.log('ds')
-    }
 
     onMouseUp = () => {
         const {onChange, polygon} = this.props;
-        const {pointClicked, x, y, dragging, dragStartX, dragStartY} = this.state;
         onChange({
             ...polygon,
-            points: polygon.points.map(
-                (point, i) => dragging ? {
-                    x: point.x + x - dragStartX,
-                    y: point.y + y - dragStartY,
-                } : i !== pointClicked ? point : {
-                    x,
-                    y
-                }
-            )
+            points: this.getPoints(this.state, this.props)
         });
         this.setState({
             pointClicked: null,
             x: 0,
             y: 0,
-            dragStartX: 0,
-            dragStartY: 0,
-            dragging: false
         })
     };
 
-    onDragStart = e => {
-        const {getCoordinates, onClick} = this.props;
-        const {x, y} = getCoordinates(e.clientX, e.clientY);
-        this.setState({
-            dragging: true,
-            dragStartX: x,
-            dragStartY: y,
+    getPoints = ({pointClicked, x, y}, {polygon}) => polygon.points.map(
+        (point, i) => i !== pointClicked ? point : {
             x,
             y
-        });
-        onClick(e);
-    };
+        }
+    );
 
     render() {
-        const {polygon, getCoordinates, selected} = this.props;
-        const {pointClicked, x, y, dragging, dragStartX, dragStartY} = this.state;
+        const {polygon, getCoordinates, selected, ...props} = this.props;
+        const {pointClicked} = this.state;
+        const points = this.getPoints(this.state, this.props);
 
-        const points = polygon.points.map(
-            (point, i) => dragging ? {
-                x: point.x + x - dragStartX,
-                y: point.y + y - dragStartY,
-            } : i !== pointClicked ? point : {
-                x,
-                y
-            }
-        );
         const styles = {
             polygon: {
                 stroke: 'black',
@@ -730,9 +830,10 @@ class Polygon extends React.PureComponent {
         return (
             <Fragment>
                 <polygon
+                    {...props}
                     points={points.map(({x, y}) => `${x} ${y}`).join(' ')}
                     style={styles.polygon}
-                    onMouseDown={this.onDragStart}
+                    onClick={e => e.stopPropagation()}
                 />
                 {selected && points.map(({x, y}, i) => (
                     <circle
@@ -747,7 +848,7 @@ class Polygon extends React.PureComponent {
                         })}
                     />
                 ))}
-                {(pointClicked !== null || dragging) && (
+                {pointClicked !== null && (
                     <Layer
                         style={styles.layer}
                         onMouseMove={e => this.setState(getCoordinates(e.clientX, e.clientY))}
