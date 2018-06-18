@@ -22,6 +22,7 @@ const getCodeLabel = (offset, startLabel, order) => {
 };
 
 const LETTERS_SPACE = 50;
+const FIELD_SPACE = 100;
 const CIRCLE_WIDTH = .7;
 
 const isRowSelected = (row, selectedIds) => row.cols.length > 0 && row.cols.every(
@@ -35,7 +36,7 @@ const getLayoutData = rows => {
     );
     const step = 1000 / Math.max(rowsAmount, colsAmount);
     const colsEnd = Math.min(colsAmount / rowsAmount, 1) * 1000 + LETTERS_SPACE;
-    const rowsEnd = Math.min(rowsAmount / colsAmount, 1) * 1000;
+    const rowsEnd = Math.min(rowsAmount / colsAmount, 1) * 1000 + FIELD_SPACE;
     const radium = step / 2 * CIRCLE_WIDTH;
     return {
         viewBox: `0 0 ${colsEnd} ${rowsEnd}`,
@@ -401,6 +402,8 @@ export default class SectionEditor extends React.PureComponent {
             saveDialogOpen,
         } = this.state;
 
+        const [left, top, width, height] = viewBox.split(' ');
+
         const isNoRowSelected = !rows.some(
             row => isRowSelected(row, selectedIds)
         );
@@ -440,6 +443,13 @@ export default class SectionEditor extends React.PureComponent {
                 margin: '0 auto',
                 background: 'white',
                 maxWidth: '100%'
+            },
+            field:{
+                fontSize:FIELD_SPACE / 3,
+                pointerEvents: 'none',
+                textAnchor: 'middle',
+                dominantBaseline: 'central',
+                fontFamily:'Proxima Nova'
             }
         };
 
@@ -545,6 +555,13 @@ export default class SectionEditor extends React.PureComponent {
                                     </React.Fragment>
                                 )
                             })}
+                            <text
+                                y={height - top - FIELD_SPACE / 2}
+                                x={(width - left) / 2 + LETTERS_SPACE / 2}
+                                style={styles.field}
+                            >
+                                CAMPO
+                            </text>
                         </svg>
                     </Selector>
                 </div>
