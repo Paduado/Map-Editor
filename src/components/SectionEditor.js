@@ -21,8 +21,8 @@ const getCodeLabel = (offset, startLabel, order) => {
     );
 };
 
-const LETTERS_SPACE = 50;
-const FIELD_SPACE = 100;
+export const LETTERS_SPACE = 50;
+export const FIELD_SPACE = 100;
 const CIRCLE_WIDTH = .7;
 
 const isRowSelected = (row, selectedIds) => row.cols.length > 0 && row.cols.every(

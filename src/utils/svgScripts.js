@@ -1,7 +1,9 @@
+import {FIELD_SPACE, LETTERS_SPACE} from "../components/SectionEditor";
+
 const scripts = `
 <style type="text/css">
     .svg-section-text{
-        font-family:Roboto-Regular, Roboto, SansSerif;
+        font-family:"Proxima Nova", Roboto-Regular, Roboto, SansSerif;
         text-anchor: middle; 
         dominant-baseline: central; 
         pointer-events:none; 
@@ -104,6 +106,11 @@ const scripts = `
 </script>
 `;
 
+const getField = viewBox => {
+    const [left, top, width, height] = viewBox.split(' ');
+    return `<text class="svg-section-text" style="font-size: ${FIELD_SPACE / 3}px" x="${(width - left) / 2 + LETTERS_SPACE / 2}" y="${height - top - FIELD_SPACE / 2}">CAMPO</text>`
+};
+
 export const getSvgHtml = ({viewBox, rows}) => `
 <svg viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg">
     ${scripts}
@@ -122,5 +129,6 @@ export const getSvgHtml = ({viewBox, rows}) => `
     `)).join(`
     `)}
     </g>
+    ${getField(viewBox)}
 </svg>
 `;
