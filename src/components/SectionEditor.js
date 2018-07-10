@@ -4,7 +4,7 @@ import {seatType} from "../utils/types";
 import {green, lightBlue} from "../utils/colors";
 import Selector from "./Selector";
 import GenerateSectionDialog from "./GenerateSectionDialog";
-import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Download, Generate, Text, Undo} from "./svgs";
+import {AlignCenter, AlignLeft, AlignRight, Delete, DeleteRow, Download, Generate, Save, Text, Undo} from "./svgs";
 import PromptDialog from "./PromptDialog";
 import ActionBar, {ActionButton} from "./ActionBar";
 import {getSvgHtml} from "../utils/svgScripts";
@@ -47,27 +47,33 @@ const getLayoutData = rows => {
 
 
 export default class SectionEditor extends React.PureComponent {
-    static propTypes = {};
-
-    state = {
-        generateDialogOpen: false,
-        rowsAmount: 10,
-        colsAmount: 10,
-        colStartLabel: 1,
-        rowStartLabel: 'A',
-        circles: [],
-        rows: [],
-        selectedIds: [],
-        viewBox: '0 0 1000 1000',
-        seatMenuOpen: false,
-        menuX: 0,
-        menuY: 0,
-        isUndo: false,
-        rowChangeDialogOpen: false,
-        colChangeDialogOpen: false,
-        saveDialogOpen: false,
-        history: []
+    static propTypes = {
+        onSave: PropTypes.func,
+        data: PropTypes.object
     };
+
+    constructor(props) {
+        super(props);
+        const {rows, viewBox} = props.data || {};
+        this.state = {
+            generateDialogOpen: false,
+            rowsAmount: 10,
+            colsAmount: 10,
+            colStartLabel: 1,
+            rowStartLabel: 'A',
+            rows: rows || [],
+            viewBox: viewBox || '0 0 1000 1000',
+            selectedIds: [],
+            seatMenuOpen: false,
+            menuX: 0,
+            menuY: 0,
+            isUndo: false,
+            rowChangeDialogOpen: false,
+            colChangeDialogOpen: false,
+            saveDialogOpen: false,
+            history: []
+        };
+    }
 
     svg = React.createRef();
     a = document.createElement('a');
@@ -390,6 +396,12 @@ export default class SectionEditor extends React.PureComponent {
         this.setState({saveDialogOpen: false});
     };
 
+    onSave = () => {
+        const {onSave} = this.props;
+        const {rows, viewBox} = this.state;
+        onSave({rows, viewBox});
+    };
+
     render() {
         const {
             generateDialogOpen,
@@ -410,30 +422,28 @@ export default class SectionEditor extends React.PureComponent {
         const styles = {
             container: {
                 width: '100%',
-                height: '100vh',
+                height: '100%',
                 display: 'flex',
-                flexDirection: 'column',
                 alignItems: 'center',
                 background: lightBlue
             },
             actionBar: {
-                height: 80,
-                padding: 10,
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0
+                width: 80,
+                height: '100%',
+                flexDirection: 'column',
+                top: 0
             },
             separator: {
-                height: '100%',
-                width: 1,
+                height: 1,
+                width: '100%',
                 background: '#ddd',
-                margin: '0 10px'
+                margin: '10px 0'
             },
             svgContainer: {
-                height: 0,
-                width: '100%',
+                height: '100%',
+                width: 0,
                 flexGrow: 1,
+                margin: '0 30px',
                 alignSelf: 'center'
             },
             svg: {
@@ -444,18 +454,18 @@ export default class SectionEditor extends React.PureComponent {
                 background: 'white',
                 maxWidth: '100%'
             },
-            field:{
-                fontSize:FIELD_SPACE / 3,
+            field: {
+                fontSize: FIELD_SPACE / 3,
                 pointerEvents: 'none',
                 textAnchor: 'middle',
                 dominantBaseline: 'central',
-                fontFamily:'Proxima Nova'
+                fontFamily: 'Proxima Nova'
             }
         };
 
         return (
             <div style={styles.container}>
-                <ActionBar>
+                <ActionBar style={styles.actionBar}>
                     <ActionButton
                         icon={<Generate/>}
                         onClick={() => this.setState({generateDialogOpen: true})}
@@ -512,15 +522,6 @@ export default class SectionEditor extends React.PureComponent {
                         label="Alinear derecha"
                         disabled={isNoRowSelected}
                     />
-                    <div style={styles.separator}/>
-                    <ActionButton
-                        icon={<Download/>}
-                        onClick={() => this.setState({saveDialogOpen: true})}
-                        label="Descargar"
-                        background={green}
-                        color="white"
-                        disabled={!rows.some(({cols}) => cols.length > 0)}
-                    />
                 </ActionBar>
                 <div style={styles.svgContainer}>
                     <Selector onSelect={this.onMultiSelect}>
@@ -555,23 +556,43 @@ export default class SectionEditor extends React.PureComponent {
                                     </React.Fragment>
                                 )
                             })}
-                            <text
-                                y={height - top - FIELD_SPACE / 2}
-                                x={(width - left) / 2 + LETTERS_SPACE / 2}
-                                style={styles.field}
-                            >
-                                CAMPO
-                            </text>
+                            {rows.length > 0 && (
+                                <text
+                                    y={height - top - FIELD_SPACE / 2}
+                                    x={(width - left) / 2 + LETTERS_SPACE / 2}
+                                    style={styles.field}
+                                >
+                                    CAMPO
+                                </text>
+                            )}
                         </svg>
                     </Selector>
                 </div>
-
+                <ActionBar style={styles.actionBar}>
+                    <ActionButton
+                        icon={<Save/>}
+                        onClick={this.onSave}
+                        label="Guardar"
+                        background={green}
+                        color="white"
+                    />
+                    <ActionButton
+                        icon={<Download/>}
+                        onClick={() => this.setState({saveDialogOpen: true})}
+                        label="Descargar"
+                        background={green}
+                        color="white"
+                        disabled={!rows.some(({cols}) => cols.length > 0)}
+                    />
+                </ActionBar>
                 <GenerateSectionDialog
+                    layerStyle={{zIndex: 101}}
                     open={generateDialogOpen}
                     onClose={() => this.setState({generateDialogOpen: false})}
                     onSuccess={this.generate}
                 />
                 <PromptDialog
+                    layerStyle={{zIndex: 101}}
                     open={rowChangeDialogOpen}
                     onClose={() => this.setState({rowChangeDialogOpen: false})}
                     onSuccess={row => this.onRowChange(row)}
@@ -579,6 +600,7 @@ export default class SectionEditor extends React.PureComponent {
                     inputLabel="Fila"
                 />
                 <PromptDialog
+                    layerStyle={{zIndex: 101}}
                     open={colChangeDialogOpen}
                     onClose={() => this.setState({colChangeDialogOpen: false})}
                     onSuccess={col => this.onColChange(col)}
@@ -586,6 +608,7 @@ export default class SectionEditor extends React.PureComponent {
                     inputLabel="Columna"
                 />
                 <PromptDialog
+                    layerStyle={{zIndex: 101}}
                     open={saveDialogOpen}
                     onClose={() => this.setState({saveDialogOpen: false})}
                     onSuccess={fileName => this.download(fileName)}
@@ -598,7 +621,7 @@ export default class SectionEditor extends React.PureComponent {
     }
 }
 
-function RowLabel({style, size, selected, ...props}) {
+const RowLabel = ({style, size, selected, ...props}) => {
     const defaultStyle = {
         fontSize: Math.min(size, LETTERS_SPACE),
         textAnchor: 'middle',
@@ -618,7 +641,7 @@ function RowLabel({style, size, selected, ...props}) {
             }}
         />
     )
-}
+};
 
 RowLabel.propTypes = {
     y: PropTypes.number.isRequired,
@@ -628,7 +651,7 @@ RowLabel.propTypes = {
     onClick: PropTypes.func.isRequired
 };
 
-function Seat({seat, selected, ...props}) {
+const Seat = ({seat, selected, ...props}) => {
     const {row, col, x, y, radium} = seat;
     const code = `${row}-${col}`;
     const styles = {
@@ -672,10 +695,9 @@ function Seat({seat, selected, ...props}) {
             </text>
         </React.Fragment>
     )
-}
+};
 
 Seat.propTypes = {
     seat: seatType.isRequired,
     selected: PropTypes.bool
 };
-

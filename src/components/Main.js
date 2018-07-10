@@ -13,6 +13,8 @@ import InsertVenueDialog from "./InsertVenueDialog";
 import {Text, TextCreator} from "./Text";
 import {Polygon, PolygonCreator, SquareCreator} from "./Polygon";
 import {Venue, VenueCreator} from "./Venue";
+import SectionEditor from "./SectionEditor";
+import Dialog from "./Dialog";
 
 const SvgContext = React.createContext();
 
@@ -27,6 +29,7 @@ export default class Main extends React.PureComponent {
         dragEndX: 0,
         dragEndY: 0,
         venueDialogOpen: false,
+        openedSectionId: null
     };
 
     componentDidMount() {
@@ -44,15 +47,18 @@ export default class Main extends React.PureComponent {
             this.setState({addMode: null})
     };
 
-    ref = svg => {
-        this.svg = svg;
-        this.point = svg.createSVGPoint();
-    };
+    svg = React.createRef();
+
+    // ref = svg => {
+    //     this.svg = svg;
+    //     this.point = svg.createSVGPoint();
+    // };
 
     getCoordinates = (X, Y, round = true) => {
-        this.point.x = X;
-        this.point.y = Y;
-        const {x, y} = this.point.matrixTransform(this.svg.getScreenCTM().inverse());
+        const point = this.svg.current.createSVGPoint();
+        point.x = X;
+        point.y = Y;
+        const {x, y} = point.matrixTransform(this.svg.current.getScreenCTM().inverse());
         return round ? {
             x: Math.round(x / 10) * 10,
             y: Math.round(y / 10) * 10,
@@ -193,8 +199,22 @@ export default class Main extends React.PureComponent {
         }))
     };
 
+    onSectionEditorChange = numeration => {
+        this.setState(({figures, openedSectionId}) => ({
+            figures: figures.map(
+                figure => figure.id !== openedSectionId
+                    ? figure
+                    : {
+                        ...figure,
+                        numeration
+                    }
+            ),
+            openedSectionId: null
+        }))
+    };
+
     render() {
-        const {addMode, selectedFigureIds, dragging, venueDialogOpen} = this.state;
+        const {addMode, selectedFigureIds, dragging, venueDialogOpen, openedSectionId} = this.state;
         const figures = dragging ? this.getDraggedFigures(this.state) : this.state.figures;
         const styles = {
             container: {
@@ -229,10 +249,28 @@ export default class Main extends React.PureComponent {
             polygonRow: {
                 borderBottom: '1px solid #ddd',
                 padding: 10
+            },
+            sectionDialog: {
+                width: 900,
+                height: '90vh',
+                padding: 0
             }
         };
         return (
             <div style={styles.container}>
+                <Dialog
+                    open={!!openedSectionId}
+                    onClose={() => this.setState({openedSectionId: null})}
+                    style={styles.sectionDialog}
+                >
+                    <SectionEditor
+                        key={Date.now()}
+                        onSave={this.onSectionEditorChange}
+                        data={(figures.find(
+                            ({id}) => id === openedSectionId
+                        ) || {}).numeration}
+                    />
+                </Dialog>
                 <ActionBar>
                     <ActionButton
                         label="Polígono"
@@ -256,7 +294,7 @@ export default class Main extends React.PureComponent {
                     />
                 </ActionBar>
                 <div style={styles.mainContainer}>
-                    <SvgContext.Provider value={this.svg}>
+                    <SvgContext.Provider value={this.svg.current}>
                         <div
                             style={styles.svgContainer}
                             onClick={() => this.setState({selectedFigureIds: []})}
@@ -266,7 +304,7 @@ export default class Main extends React.PureComponent {
                             <svg
                                 viewBox="0 0 1000 1000"
                                 style={styles.svg}
-                                ref={this.ref}
+                                ref={this.svg}
                             >
                                 <Grid lines={100} step={10}/>
                                 {figures.map(figure =>
@@ -353,6 +391,7 @@ export default class Main extends React.PureComponent {
                                     <SectionFields
                                         figure={figure}
                                         onChange={this.onFigureChange}
+                                        onOpen={() => this.setState({openedSectionId: figure.id})}
                                     />
                                 )}
                             </FigureRow>
@@ -482,7 +521,7 @@ PolygonFields.propTypes = {
     onChange: PropTypes.func.isRequired
 };
 
-const SectionFields = ({figure, onChange}) => (
+const SectionFields = ({figure, onChange, onOpen}) => (
     <Fragment>
         <Input
             label="Código"
@@ -496,8 +535,14 @@ const SectionFields = ({figure, onChange}) => (
         <Input
             label="Disponibilidad"
             style={{width: '100%'}}
+            disabled={!!figure.numeration}
             type="number"
-            value={figure.availability}
+            value={figure.numeration
+                ? figure.numeration.rows.reduce(
+                    (total, row) => total + row.cols.length, 0
+                )
+                : figure.availability
+            }
             onChange={(e, availability) => onChange(({
                 ...figure,
                 availability
@@ -515,7 +560,8 @@ const SectionFields = ({figure, onChange}) => (
         />
         <Button
             style={{margin: 0}}
-            label="Agregar numeración"
+            label={`${figure.numeration ? 'Ver' : 'Agregar'} numeración`}
+            onClick={onOpen}
         />
     </Fragment>
 );
@@ -533,9 +579,10 @@ const TextFields = ({figure, onChange}) => (
 );
 
 
-const Grid = ({lines, step}) => {
-    return Array.from({length: lines - 1}, (_, i) => (
-        <React.Fragment key={i}>
+const Grid = ({lines, step}) => Array.from(
+    {length: lines - 1},
+    (_, i) => (
+        <Fragment key={i}>
             <line
                 x1="0"
                 x2="1000"
@@ -552,6 +599,6 @@ const Grid = ({lines, step}) => {
                 stroke="#eee"
                 strokeWidth="1"
             />
-        </React.Fragment>
-    ));
-};
+        </Fragment>
+    )
+);

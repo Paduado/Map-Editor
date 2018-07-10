@@ -50,7 +50,7 @@ export const ActionButton = Radium(({
             height: 60,
             borderRadius: 3,
             fill: color,
-            margin: '0 5px',
+            margin:5,
             color,
             background: background,
             ':hover': {
