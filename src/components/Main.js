@@ -1,7 +1,7 @@
 import React, {Fragment} from 'react';
 import PropTypes from 'prop-types'
 import ActionBar, {ActionButton} from "./ActionBar";
-import {Delete, Square, Text as TextIcon, Polygon as PolygonIcon, Seat} from "./svgs";
+import {Delete, Square, Text as TextIcon, Polygon as PolygonIcon, Seat, Undo, Clear} from "./svgs";
 import {green, lightBlue} from "../utils/colors";
 import {v4} from 'uuid'
 import {polygonType} from "../utils/types";
@@ -29,30 +29,77 @@ export default class Main extends React.PureComponent {
         dragEndX: 0,
         dragEndY: 0,
         venueDialogOpen: false,
-        openedSectionId: null
+        openedSectionId: null,
+        history: [],
+        isUndo: false,
     };
 
     componentDidMount() {
-        window.addEventListener('resize', () => this.forceUpdate());
+        window.addEventListener('resize', this.onResize);
+        window.addEventListener('beforeunload', this.onBeforeUnload);
         window.addEventListener('keydown', this.onKeyDown);
+        const data = JSON.parse(localStorage.getItem('venueData'));
+        if(data)
+            this.setState(data);
     }
 
     componentWillUnmount() {
-        window.removeEventListener('resize', () => this.forceUpdate());
+        window.removeEventListener('resize', this.onResize);
+        window.removeEventListener('beforeunload', this.onBeforeUnload);
         window.removeEventListener('keydown', this.onKeyDown);
     }
 
-    onKeyDown = ({key}) => {
+    componentDidUpdate(prevProps, prevState) {
+        const {figures, isUndo} = this.state;
+        if(
+            figures !== prevState.figures
+        ) {
+            if(isUndo)
+                this.setState({isUndo: false});
+            else
+                this.setState(({history}) => ({
+                    history: [...history, {
+                        figures: prevState.figures,
+                    }]
+                }));
+        }
+    }
+
+    onClear = ()=>{
+        window.removeEventListener('beforeunload', this.onBeforeUnload);
+        localStorage.removeItem('venueData');
+        window.location.reload();
+    };
+
+    onResize = () => this.forceUpdate();
+
+    onBeforeUnload = () => {
+        const {figures} = this.state;
+        localStorage.setItem('venueData', JSON.stringify({figures}))
+    };
+
+    onKeyDown = ({key, metaKey}) => {
         if(key === 'Escape')
-            this.setState({addMode: null})
+            this.setState({addMode: null});
+        else if(key === 'z' && metaKey)
+            this.undo()
+    };
+
+    undo = () => {
+        this.setState(({history}) => {
+            if(!history.length)
+                return null;
+
+            const [{figures}] = history.slice(-1);
+            return {
+                figures,
+                history: history.slice(0, -1),
+                isUndo: true
+            }
+        });
     };
 
     svg = React.createRef();
-
-    // ref = svg => {
-    //     this.svg = svg;
-    //     this.point = svg.createSVGPoint();
-    // };
 
     getCoordinates = (X, Y, round = true) => {
         const point = this.svg.current.createSVGPoint();
@@ -193,6 +240,7 @@ export default class Main extends React.PureComponent {
                 type: 'text',
                 color: 'black',
                 value: 'Texto',
+                size: 1,
                 x,
                 y
             }),
@@ -214,7 +262,7 @@ export default class Main extends React.PureComponent {
     };
 
     render() {
-        const {addMode, selectedFigureIds, dragging, venueDialogOpen, openedSectionId} = this.state;
+        const {addMode, selectedFigureIds, dragging, venueDialogOpen, openedSectionId, history} = this.state;
         const figures = dragging ? this.getDraggedFigures(this.state) : this.state.figures;
         const styles = {
             container: {
@@ -272,6 +320,17 @@ export default class Main extends React.PureComponent {
                     />
                 </Dialog>
                 <ActionBar>
+                    <ActionButton
+                        icon={<Clear/>}
+                        onClick={this.onClear}
+                        label="Limpiar"
+                    />
+                    <ActionButton
+                        icon={<Undo/>}
+                        onClick={this.undo}
+                        label="Deshacer"
+                        disabled={history.length === 0}
+                    />
                     <ActionButton
                         label="Polígono"
                         icon={<PolygonIcon/>}
@@ -567,15 +626,27 @@ const SectionFields = ({figure, onChange, onOpen}) => (
 );
 
 const TextFields = ({figure, onChange}) => (
-    <Input
-        label="Texto"
-        style={{width: '100%'}}
-        value={figure.value}
-        onChange={(e, value) => onChange(({
-            ...figure,
-            value
-        }))}
-    />
+    <Fragment>
+        <Input
+            label="Texto"
+            style={{width: '100%'}}
+            value={figure.value}
+            onChange={(e, value) => onChange(({
+                ...figure,
+                value
+            }))}
+        />
+        <Input
+            label="Tamaño"
+            type="number"
+            style={{width: '100%'}}
+            value={figure.size}
+            onChange={(e, size) => onChange(({
+                ...figure,
+                size
+            }))}
+        />
+    </Fragment>
 );
 
 

@@ -82,7 +82,7 @@ export const ActionButton = Radium(({
         </button>
     )
 });
-
+ActionButton.displayName = 'ActionButton';
 
 ActionButton.propTypes = {
     icon: PropTypes.any.isRequired,

@@ -79,13 +79,13 @@ export default class SectionEditor extends React.PureComponent {
     a = document.createElement('a');
 
     componentDidMount() {
-        window.addEventListener('keypress', this.onKeyPress);
+        window.addEventListener('keydown', this.onKeyDown);
         this.a.style.display = 'none';
         document.body.appendChild(this.a);
     }
 
     componentWillUnmount() {
-        window.removeEventListener('keypress', this.onKeyPress);
+        window.removeEventListener('keydown', this.onKeyDown);
         document.body.removeChild(this.a);
     }
 
@@ -107,8 +107,8 @@ export default class SectionEditor extends React.PureComponent {
         }
     }
 
-    onKeyPress = ({key, ctrlKey}) => {
-        if(key === 'z' && ctrlKey)
+    onKeyDown = ({key, metaKey}) => {
+        if(key === 'z' && metaKey)
             this.undo()
     };
 

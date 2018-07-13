@@ -8,6 +8,7 @@ export class Text extends React.PureComponent {
             x: PropTypes.number.isRequired,
             y: PropTypes.number.isRequired,
             value: PropTypes.string.isRequired,
+            size: PropTypes.any.isRequired,
         }),
         getCoordinates: PropTypes.func.isRequired,
         selected: PropTypes.bool,
@@ -55,7 +56,8 @@ export class Text extends React.PureComponent {
         } = this.text ? this.text.getBBox() : {};
         const styles = {
             text: {
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontSize: text.size + 'rem'
             },
             box: {
                 fill: 'none',
@@ -88,6 +90,7 @@ export class Text extends React.PureComponent {
         )
     }
 }
+
 export class TextCreator extends React.PureComponent {
     static propTypes = {
         onSuccess: PropTypes.func.isRequired,
