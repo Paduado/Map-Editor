@@ -78,7 +78,7 @@ export default class Selector extends React.PureComponent {
                 left: Math.min(startX, endX),
                 height: Math.abs(startY - endY),
                 width: Math.abs(startX - endX),
-                zIndex: 10,
+                zIndex: 100,
                 pointerEvents: 'none'
             },
         };

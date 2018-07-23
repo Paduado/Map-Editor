@@ -71,7 +71,9 @@ export default class Main extends React.PureComponent {
         window.location.reload();
     };
 
-    onResize = () => this.forceUpdate();
+    onResize = () => {
+        // this.forceUpdate();
+    };
 
     onBeforeUnload = () => {
         const {figures} = this.state;

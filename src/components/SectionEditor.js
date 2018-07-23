@@ -393,7 +393,7 @@ export default class SectionEditor extends React.PureComponent {
         this.a.href = URL.createObjectURL(data);
         this.a.download = fileName;
         this.a.click();
-        this.setState({saveDialogOpen: false});
+        // this.setState({saveDialogOpen: false});
     };
 
     onSave = () => {
